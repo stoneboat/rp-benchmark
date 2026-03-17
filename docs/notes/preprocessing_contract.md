@@ -24,30 +24,33 @@ Drop any row with a missing value in features or target.
 - Fit `sklearn.preprocessing.StandardScaler` on training features only.
 - Transform both train and test features.
 
+## Feature clipping
+
+- After scaling, clip each feature row to a public L2 bound `C_X`.
+- Clipping is done by rescaling, not dropping:
+
+      x_i <- x_i * min(1, C_X / ||x_i||_2)
+
+- The same public `C_X` is applied to both train and test features.
+
 ## Label scaling
 
 - Standardize labels: subtract training mean, divide by training std.
 - Apply the same transformation to test labels.
 
-## Row clipping (features)
-
-- Compute L2 norms of training feature rows.
-- Set C_X = 95th percentile of those norms.
-- Remove any training row with ||x_i||_2 > C_X.
-- Remove any test row with ||x_i||_2 > C_X.
-
 ## Label clipping
 
-- Set C_Y = 95th percentile of |y_train|.
+- After standardization, clip labels to a public bound `C_Y`.
 - Clip training and test labels to [-C_Y, C_Y].
 
 ## Row-norm bound for mechanisms
 
-After preprocessing, the public row-norm bound `l` is computed as:
+After preprocessing, the public row-norm bound `l` is set from the public
+feature/label clipping bounds:
 
-    l = max_i ||[x_i, y_i]||_2
+    l = sqrt(C_X^2 + C_Y^2)
 
-over the training set. This is the bound used in MRP calibration
+This is the bound used in MRP calibration
 (Figure 1, Step 2 of the NDIS paper).
 
 ## Non-private reference

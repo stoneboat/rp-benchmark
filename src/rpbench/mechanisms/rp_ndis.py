@@ -71,9 +71,21 @@ def compute_IS(epsilon: float, leverage: float, r: int) -> float:
     r : int
         Sketch dimension (number of random projections).
     """
+    if r <= 0:
+        raise ValueError("compute_IS requires r > 0")
+    if epsilon < 0:
+        raise ValueError("compute_IS requires epsilon >= 0")
+    if not (0.0 <= leverage < 1.0):
+        raise ValueError("compute_IS requires leverage in [0, 1)")
+    if leverage == 0.0:
+        return 0.0
+
     s = r / 2.0
-    rho = 1.0 / (1.0 - leverage)
-    t0 = 2.0 * (epsilon + (r / 2.0) * np.log(rho)) / (rho - 1.0)
+    one_minus_p = 1.0 - leverage
+    rho = 1.0 / one_minus_p
+    log_rho = -np.log1p(-leverage)
+    rho_minus_1 = leverage / one_minus_p
+    t0 = 2.0 * (epsilon + (r / 2.0) * log_rho) / rho_minus_1
     return _compute_gamma_delta(s, t0, rho, epsilon)
 
 
@@ -93,6 +105,17 @@ def compute_leverage_upper_bound(
 
     Implements Figure 1, Step 1 of the NDIS paper.
     """
+    if r <= 0:
+        raise ValueError("compute_leverage_upper_bound requires r > 0")
+    if epsilon < 0:
+        raise ValueError("compute_leverage_upper_bound requires epsilon >= 0")
+    if not (0.0 < delta < 1.0):
+        raise ValueError("compute_leverage_upper_bound requires delta in (0, 1)")
+    if not (0.0 <= low < high < 1.0):
+        raise ValueError("compute_leverage_upper_bound requires 0 <= low < high < 1")
+    if tol <= 0:
+        raise ValueError("compute_leverage_upper_bound requires tol > 0")
+
     if compute_IS(epsilon, low, r) > delta:
         raise ValueError(
             f"delta^{{gRP}}(eps={epsilon}, p={low}, r={r}) > delta={delta}; "
@@ -145,6 +168,12 @@ class MechRP(Mechanism):
 
         if r <= 0:
             raise ValueError("Mech_RP calibration requires r > 0")
+        if epsilon < 0:
+            raise ValueError("Mech_RP calibration requires epsilon >= 0")
+        if not (0.0 < delta < 1.0):
+            raise ValueError("Mech_RP calibration requires delta in (0, 1)")
+        if l <= 0:
+            raise ValueError("Mech_RP calibration requires l > 0")
 
         p_star = compute_leverage_upper_bound(epsilon, delta, r)
         lambda_ridge = l ** 2 / p_star

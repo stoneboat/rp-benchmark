@@ -28,8 +28,8 @@ class PreprocessSpec:
     scale_x: bool = True
     clip_x: bool = True
     clip_y: bool = True
-    clip_x_norm: float | None = None  # auto-determined if None
-    clip_y_abs: float | None = None   # auto-determined if None
+    clip_x_bound: float = 3.0
+    clip_y_bound: float = 3.0
     missing_policy: str = "drop"
 
 

@@ -34,6 +34,10 @@ class Blocki12JL(Mechanism):
         r = self.r
         if r <= 0:
             raise ValueError("Blocki12_JL calibration requires r > 0")
+        if epsilon <= 0:
+            raise ValueError("Blocki12_JL calibration requires epsilon > 0")
+        if not (0.0 < delta < 1.0):
+            raise ValueError("Blocki12_JL calibration requires delta in (0, 1)")
 
         w = 16.0 * math.sqrt(r * math.log(2.0 / delta)) * math.log(16.0 * r / delta) / epsilon
 

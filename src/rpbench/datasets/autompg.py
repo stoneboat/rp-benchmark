@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -37,6 +36,18 @@ class AutoMPGAdapter(DatasetAdapter):
 
     def __init__(self, cache_dir: str = "data/cache"):
         self.cache_dir = cache_dir
+
+    @staticmethod
+    def _clip_rows_to_l2_bound(X: np.ndarray, bound: float) -> np.ndarray:
+        """Rescale rows to satisfy ||x_i||_2 <= bound."""
+        if bound <= 0:
+            raise ValueError("clip_x_bound must be > 0 when clip_x is enabled")
+
+        norms = np.linalg.norm(X, axis=1)
+        scales = np.ones_like(norms)
+        mask = norms > bound
+        scales[mask] = bound / norms[mask]
+        return X * scales[:, np.newaxis]
 
     def load(self, split_spec: SplitSpec, preprocess_spec: PreprocessSpec) -> DatasetBundle:
         cache = Path(self.cache_dir)
@@ -81,24 +92,19 @@ class AutoMPGAdapter(DatasetAdapter):
             y_train = (y_train - y_mean) / y_std
             y_test = (y_test - y_mean) / y_std
 
-        # Row clipping (L2 norm)
+        # Row clipping after scaling: rescale each row to the public bound C_X.
         if preprocess_spec.clip_x:
-            norms = np.linalg.norm(X_train, axis=1)
-            C_X = np.percentile(norms, 95)
-            mask_train = norms <= C_X
-            X_train = X_train[mask_train]
-            y_train = y_train[mask_train]
-
-            norms_test = np.linalg.norm(X_test, axis=1)
-            mask_test = norms_test <= C_X
-            X_test = X_test[mask_test]
-            y_test = y_test[mask_test]
+            C_X = float(preprocess_spec.clip_x_bound)
+            X_train = self._clip_rows_to_l2_bound(X_train, C_X)
+            X_test = self._clip_rows_to_l2_bound(X_test, C_X)
         else:
             C_X = float(np.max(np.linalg.norm(X_train, axis=1)))
 
-        # Label clipping
+        # Label clipping after standardization to the public bound C_Y.
         if preprocess_spec.clip_y:
-            C_Y = np.percentile(np.abs(y_train), 95)
+            C_Y = float(preprocess_spec.clip_y_bound)
+            if C_Y <= 0:
+                raise ValueError("clip_y_bound must be > 0 when clip_y is enabled")
             y_train = np.clip(y_train, -C_Y, C_Y)
             y_test = np.clip(y_test, -C_Y, C_Y)
         else:
@@ -122,8 +128,7 @@ class AutoMPGAdapter(DatasetAdapter):
         )
 
     def public_meta(self, bundle: DatasetBundle) -> dict[str, Any]:
-        A_train = np.column_stack([bundle.X_train, bundle.y_train])
-        l = float(np.max(np.linalg.norm(A_train, axis=1)))
+        l = float(np.sqrt(bundle.meta["C_X"] ** 2 + bundle.meta["C_Y"] ** 2))
         return {
             "n": bundle.meta["n_train"],
             "d": bundle.meta["d"],

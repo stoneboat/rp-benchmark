@@ -9,6 +9,8 @@ from rpbench.mechanisms.rp_ndis import MechRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.mechanisms.base import ReleaseBundle
 from rpbench.tasks.ols_from_release import OLSFromRelease
+from rpbench.datasets.autompg import AutoMPGAdapter
+from rpbench.config import SplitSpec, PreprocessSpec
 
 
 def _make_data(n=100, d=5, seed=0):
@@ -85,3 +87,20 @@ def test_ols_from_release_stabilizes_indefinite_xtx():
     beta = task.fit_from_release(rb, train_meta={})
 
     np.testing.assert_allclose(beta, np.array([2.0, 0.0]))
+
+
+def test_autompg_public_clipping_bounds_are_enforced():
+    bundle = AutoMPGAdapter().load(
+        SplitSpec(),
+        PreprocessSpec(clip_x=True, clip_x_bound=2.5, clip_y=True, clip_y_bound=1.5),
+    )
+    x_train_norms = np.linalg.norm(bundle.X_train, axis=1)
+    x_test_norms = np.linalg.norm(bundle.X_test, axis=1)
+
+    assert float(np.max(x_train_norms)) <= 2.5 + 1e-9
+    assert float(np.max(x_test_norms)) <= 2.5 + 1e-9
+    assert float(np.max(np.abs(bundle.y_train))) <= 1.5 + 1e-9
+    assert float(np.max(np.abs(bundle.y_test))) <= 1.5 + 1e-9
+
+    pub_meta = AutoMPGAdapter().public_meta(bundle)
+    np.testing.assert_allclose(pub_meta["l"], np.sqrt(2.5 ** 2 + 1.5 ** 2))
