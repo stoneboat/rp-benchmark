@@ -89,6 +89,26 @@ def test_ols_from_release_stabilizes_indefinite_xtx():
     np.testing.assert_allclose(beta, np.array([2.0, 0.0]))
 
 
+def test_ols_from_release_uses_rp_sketch_decoder():
+    task = OLSFromRelease()
+    rb = ReleaseBundle(
+        mechanism_name="Mech_RP",
+        release_kind="gram_blocks",
+        xtx_hat=np.zeros((2, 2)),
+        xty_hat=np.zeros(2),
+        sketch_matrix=np.array([
+            [1.0, 0.0],
+            [0.0, 2.0],
+            [5.0, 8.0],
+        ]),
+        calibration={"lambda_ridge": 1.0},
+    )
+
+    beta = task.fit_from_release(rb, train_meta={})
+
+    np.testing.assert_allclose(beta, np.array([5.0, 4.0]))
+
+
 def test_autompg_public_clipping_bounds_are_enforced():
     bundle = AutoMPGAdapter().load(
         SplitSpec(),

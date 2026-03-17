@@ -18,15 +18,8 @@ class OLSFromRelease(Task):
     def __init__(self, rcond: float = 1e-6):
         self.rcond = rcond
 
-    def fit_from_release(self, release_bundle: ReleaseBundle, train_meta: dict) -> np.ndarray:
-        xtx = release_bundle.xtx_hat
-        xty = release_bundle.xty_hat
-        assert xtx is not None
-        assert xty is not None
-
-        # Symmetrize and solve with a truncated spectral pseudoinverse.
-        # This suppresses negative / near-zero directions introduced by
-        # sketching noise, which otherwise cause unstable downstream OLS.
+    def _spectral_pinv_solve(self, xtx: np.ndarray, xty: np.ndarray) -> np.ndarray:
+        """Solve a symmetric linear system via a truncated spectral pseudoinverse."""
         xtx_sym = 0.5 * (xtx + xtx.T)
         eigvals, eigvecs = np.linalg.eigh(xtx_sym)
         scale = float(np.max(np.abs(eigvals))) if eigvals.size else 0.0
@@ -35,7 +28,27 @@ class OLSFromRelease(Task):
         inv_eigvals = np.zeros_like(eigvals)
         keep = eigvals > cutoff
         inv_eigvals[keep] = 1.0 / eigvals[keep]
-        beta_hat = eigvecs @ (inv_eigvals * (eigvecs.T @ xty))
+        return eigvecs @ (inv_eigvals * (eigvecs.T @ xty))
+
+    def fit_from_release(self, release_bundle: ReleaseBundle, train_meta: dict) -> np.ndarray:
+        xtx = release_bundle.xtx_hat
+        xty = release_bundle.xty_hat
+        assert xtx is not None
+        assert xty is not None
+
+        if (
+            release_bundle.mechanism_name == "Mech_RP"
+            and release_bundle.sketch_matrix is not None
+            and "lambda_ridge" in release_bundle.calibration
+        ):
+            m_tilde = release_bundle.sketch_matrix
+            d = xtx.shape[0]
+            m_x = m_tilde[:d, :]
+            m_y = m_tilde[d, :]
+            beta_hat = self._spectral_pinv_solve(m_x @ m_x.T, m_x @ m_y)
+        else:
+            # Generic covariance-release decoder.
+            beta_hat = self._spectral_pinv_solve(xtx, xty)
 
         return beta_hat
 
