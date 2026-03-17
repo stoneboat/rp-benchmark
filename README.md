@@ -6,7 +6,7 @@ Compares **Mech_RP** (NDIS paper, arxiv 2309.01243) and **Blocki12_JL**
 (Blocki et al. 2012, arxiv 1204.2136) on the AutoMPG dataset using
 OLS as the downstream task.
 
-## Quick start
+## Quick start (local)
 
 ```bash
 # 1. Create venv and install
@@ -28,6 +28,42 @@ python scripts/build_report.py \
 # 5. Run tests
 pytest -q
 ```
+
+## Quick start (Purdue RCAC Bell cluster)
+
+The cluster script uses **conda** and places the environment under `/tmp/python-venv/`
+to avoid filling the home-directory quota.
+
+```bash
+# 1. Install (creates conda env at /tmp/python-venv/rp_benchmark_venv)
+bash scripts/local_scripts/cluster_install_bell.sh
+
+# 2. Activate the conda env in subsequent sessions
+module load anaconda
+eval "$(conda shell.bash hook)"
+conda activate /tmp/python-venv/rp_benchmark_venv
+
+# 3. Run the demo
+python scripts/run_demo.py --config configs/demo/wf001_demo_autompg.yaml
+
+# 4. Build the report
+python scripts/build_report.py --input-root data/outputs/runs --output-root data/outputs/reports
+```
+
+Notes:
+- If you see `CondaToSNonInteractiveError`, accept the Anaconda channel ToS once:
+
+```bash
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+```
+
+## Notebook walkthrough (optional)
+
+A step-by-step demo notebook is provided at `notebooks/wf001_stage1_walkthrough.ipynb`.
+
+If you registered the kernel via `scripts/local_scripts/cluster_install_bell.sh`, select
+the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom.
 
 ## What the demo does
 
