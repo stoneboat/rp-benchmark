@@ -26,7 +26,7 @@ def test_mini_run():
         seeds=[0],
         split=SplitSpec(train_fraction=0.8, seed=42),
         preprocess=PreprocessSpec(),
-        mech_params={"Mech_RP": {"r_over_d": 4}},
+        mech_params={"Mech_RP": {"r": 24}},
         output_root=tempfile.mkdtemp(),
     )
 
@@ -60,7 +60,7 @@ def test_report_builder():
         seeds=[0],
         split=SplitSpec(train_fraction=0.8, seed=42),
         preprocess=PreprocessSpec(),
-        mech_params={"Mech_RP": {"r_over_d": 4}},
+        mech_params={"Mech_RP": {"r": 24}},
         output_root=str(tmpdir / "runs"),
     )
 

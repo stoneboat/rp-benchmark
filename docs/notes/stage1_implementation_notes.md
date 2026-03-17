@@ -6,6 +6,8 @@ stage-1 implementation of WF-001.
 ## Mech_RP
 
 - **Ground truth**: NDIS paper (arxiv 2309.01243), Figure 1.
+- **Sketch dimension**: `r` is provided explicitly by benchmark config so it can
+  be matched exactly against baselines.
 - **Code provenance**: Core privacy-curve functions (`_compute_gamma_delta`,
   `compute_IS`) and the calibration binary search (`compute_leverage_upper_bound`)
   are copied directly from the old NDIS repo (`NDIS/src/analysis/
@@ -29,10 +31,11 @@ stage-1 implementation of WF-001.
 ## Blocki12_JL
 
 - **Ground truth**: Blocki et al. 2012 (arxiv 1204.2136), Algorithm 3.
-- **Centering**: We center the augmented matrix by column means before
-  SVD, as specified in the paper.
-- **Default parameters**: eta=0.5, nu=0.1. These give
-  r = ceil(8 * ln(20) / 0.25) ~ 96 projections.
+- **Sketch dimension**: `r` is provided explicitly by benchmark config so both
+  mechanisms run at the same projection dimension.
+- **Shared input matrix**: The benchmark passes the same augmented training
+  matrix `D = [X | y]` directly to both mechanisms; `Blocki12_JL` does not apply
+  an extra internal centering step.
 - **Augmented data**: Same convention as Mech_RP — apply to `[X | y]`.
 
 ## Preprocessing

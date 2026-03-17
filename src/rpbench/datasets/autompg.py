@@ -42,7 +42,16 @@ class AutoMPGAdapter(DatasetAdapter):
         cache = Path(self.cache_dir)
         cache.mkdir(parents=True, exist_ok=True)
 
-        bunch = fetch_openml(data_id=196, as_frame=True, data_home=str(cache), parser="auto")
+        fetch_kwargs = {
+            "data_id": 196,
+            "as_frame": True,
+            "data_home": str(cache),
+        }
+        try:
+            bunch = fetch_openml(parser="auto", **fetch_kwargs)
+        except TypeError:
+            # Older scikit-learn versions do not support the parser kwarg.
+            bunch = fetch_openml(**fetch_kwargs)
         df = bunch.frame  # type: ignore[union-attr]
 
         # Drop rows with missing values

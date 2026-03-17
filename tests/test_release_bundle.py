@@ -24,7 +24,7 @@ def _make_data(n=100, d=5, seed=0):
 
 def test_mech_rp_release():
     A, meta = _make_data()
-    mech = MechRP(r_over_d=4)
+    mech = MechRP(r=24)
     ps = PrivacySpec(epsilon=1.0, delta=1e-4)
     mech.calibrate(ps, meta)
     rb = mech.release(A, seed=42)
@@ -41,7 +41,7 @@ def test_mech_rp_release():
 
 def test_blocki_jl_release():
     A, meta = _make_data()
-    mech = Blocki12JL(eta=0.5, nu=0.1)
+    mech = Blocki12JL(r=24)
     ps = PrivacySpec(epsilon=1.0, delta=1e-4)
     mech.calibrate(ps, meta)
     rb = mech.release(A, seed=42)
@@ -60,11 +60,11 @@ def test_both_same_shape():
     A, meta = _make_data()
     ps = PrivacySpec(epsilon=2.0, delta=1e-4)
 
-    rp = MechRP(r_over_d=4)
+    rp = MechRP(r=24)
     rp.calibrate(ps, meta)
     rb_rp = rp.release(A, seed=0)
 
-    jl = Blocki12JL()
+    jl = Blocki12JL(r=24)
     jl.calibrate(ps, meta)
     rb_jl = jl.release(A, seed=0)
 

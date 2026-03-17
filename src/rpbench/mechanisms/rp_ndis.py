@@ -131,18 +131,20 @@ class MechRP(Mechanism):
 
     name = "Mech_RP"
 
-    def __init__(self, r_over_d: int = 4):
-        self.r_over_d = r_over_d
+    def __init__(self, r: int):
+        self.r = r
         self._calibrated = False
         self._cal: dict[str, Any] = {}
 
     def calibrate(self, privacy_spec, public_meta: dict) -> None:
         epsilon = privacy_spec.epsilon
         delta = privacy_spec.delta
-        d_aug = public_meta["d_aug"]
         l = public_meta["l"]
+        d_aug = public_meta["d_aug"]
+        r = self.r
 
-        r = self.r_over_d * d_aug
+        if r <= 0:
+            raise ValueError("Mech_RP calibration requires r > 0")
 
         p_star = compute_leverage_upper_bound(epsilon, delta, r)
         lambda_ridge = l ** 2 / p_star

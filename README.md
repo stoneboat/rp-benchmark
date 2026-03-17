@@ -70,6 +70,7 @@ the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom
 1. Loads and preprocesses AutoMPG (7 features, `mpg` target).
 2. For each mechanism × epsilon × seed:
    - Calibrates the mechanism under (ε, δ)-DP.
+   - Uses the same explicit projection dimension `r` for both mechanisms.
    - Produces a private release of X^T X and X^T y.
    - Fits OLS from the release.
    - Evaluates test MSE and relative Frobenius error.
@@ -84,6 +85,7 @@ See `configs/demo/wf001_demo_autompg.yaml` for the demo contract:
 - **Mechanisms**: Mech_RP, Blocki12_JL
 - **Epsilons**: 0.5, 1.0, 2.0, 4.0
 - **Delta**: 1/n²
+- **Shared sketch dimension**: r = 96
 - **Seeds**: 0–4
 - **Split**: 80/20 train/test, seed 42
 

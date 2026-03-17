@@ -23,19 +23,17 @@ class Blocki12JL(Mechanism):
 
     name = "Blocki12_JL"
 
-    def __init__(self, eta: float = 0.5, nu: float = 0.1):
-        self.eta = eta
-        self.nu = nu
+    def __init__(self, r: int):
+        self.r = r
         self._calibrated = False
         self._cal: dict[str, Any] = {}
 
     def calibrate(self, privacy_spec, public_meta: dict) -> None:
         epsilon = privacy_spec.epsilon
         delta = privacy_spec.delta
-        eta = self.eta
-        nu = self.nu
-
-        r = int(math.ceil(8.0 * math.log(2.0 / nu) / (eta ** 2)))
+        r = self.r
+        if r <= 0:
+            raise ValueError("Blocki12_JL calibration requires r > 0")
 
         denom = epsilon * math.log(16.0 * r / delta)
         if denom <= 0:
@@ -45,8 +43,6 @@ class Blocki12JL(Mechanism):
         self._cal = {
             "epsilon": epsilon,
             "delta": delta,
-            "eta": eta,
-            "nu": nu,
             "r": r,
             "w": w,
             "d_aug": public_meta["d_aug"],
@@ -63,22 +59,18 @@ class Blocki12JL(Mechanism):
         r = self._cal["r"]
         w = self._cal["w"]
 
-        # Step 1: center columns
-        col_means = A.mean(axis=0)
-        A = A - col_means
-
-        # Step 2: SVD
+        # Step 1: SVD on the input matrix as provided by the benchmark.
         U, S, Vt = np.linalg.svd(A, full_matrices=False)  # economy SVD
 
-        # Step 3: spectral regularization — replace singular values
+        # Step 2: spectral regularization — replace singular values
         S_reg = np.sqrt(S ** 2 + w ** 2)
         A_reg = U * S_reg[np.newaxis, :] @ Vt  # (n, d_aug)
 
-        # Step 4: random projection
+        # Step 3: random projection
         M = rng.standard_normal((r, n))  # (r, n)
         MA = M @ A_reg                   # (r, d_aug)
 
-        # Step 5: covariance estimate
+        # Step 4: covariance estimate
         C_tilde = (MA.T @ MA) / r        # (d_aug, d_aug)
 
         d = d_aug - 1

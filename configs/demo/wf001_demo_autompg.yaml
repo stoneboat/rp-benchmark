@@ -14,8 +14,7 @@ preprocess:
   missing_policy: drop
 mech_params:
   Mech_RP:
-    r_over_d: 4
+    r: 96
   Blocki12_JL:
-    eta: 0.5
-    nu: 0.1
+    r: 96
 output_root: data/outputs/runs
