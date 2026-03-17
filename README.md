@@ -60,7 +60,7 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
 ## Notebook walkthrough (optional)
 
-A step-by-step demo notebook is provided at `notebooks/wf001_stage1_walkthrough.ipynb`.
+A step-by-step demo notebook is provided at `notebooks/test_demo.ipynb`.
 
 If you registered the kernel via `scripts/local_scripts/cluster_install_bell.sh`, select
 the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom.
