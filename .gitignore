@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# Data and outputs
+data/raw/
+data/cache/
+data/outputs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cursor
+.cursor/
+
+# Reports (generated)
+reports/examples/*.png
+reports/examples/*.csv

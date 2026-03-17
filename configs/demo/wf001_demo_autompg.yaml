@@ -1,0 +1,21 @@
+dataset: autompg
+mechanisms: [Mech_RP, Blocki12_JL]
+task: OLSFromRelease
+epsilon_grid: [0.5, 1.0, 2.0, 4.0]
+delta_rule: "1/n^2"
+seeds: [0, 1, 2, 3, 4]
+split:
+  train_fraction: 0.8
+  seed: 42
+preprocess:
+  scale_x: true
+  clip_x: true
+  clip_y: true
+  missing_policy: drop
+mech_params:
+  Mech_RP:
+    r_over_d: 4
+  Blocki12_JL:
+    eta: 0.5
+    nu: 0.1
+output_root: data/outputs/runs
