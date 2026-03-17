@@ -1,5 +1,5 @@
 dataset: autompg
-mechanisms: [Mech_RP, Blocki12_JL]
+mechanisms: [Mech_RP, Mech_RP_Pois, Blocki12_JL]
 task: OLSFromRelease
 epsilon_grid: [0.5, 1.0, 2.0, 4.0]
 delta_rule: 1e-6
@@ -19,7 +19,10 @@ preprocess:
   missing_policy: drop
 mech_params:
   Mech_RP:
-    r: 100
+    r: 50
+  Mech_RP_Pois:
+    r: 50
+    q: 0.5
   Blocki12_JL:
-    r: 100
+    r: 50
 output_root: data/outputs/runs

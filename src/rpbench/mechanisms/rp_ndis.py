@@ -230,3 +230,75 @@ class MechRP(Mechanism):
 
     def diagnostics(self) -> dict[str, Any]:
         return dict(self._cal)
+
+
+class MechRPPois(Mechanism):
+    """Poisson-subsampled wrapper for Mech_RP (Figure 3, Section 5.3)."""
+
+    name = "Mech_RP_Pois"
+
+    def __init__(self, r: int, q: float):
+        self.r = r
+        self.q = q
+        self._inner = MechRP(r=r)
+        self._calibrated = False
+        self._cal: dict[str, Any] = {}
+
+    def calibrate(self, privacy_spec, public_meta: dict) -> None:
+        epsilon = privacy_spec.epsilon
+        delta = privacy_spec.delta
+
+        if self.r <= 0:
+            raise ValueError("Mech_RP_Pois calibration requires r > 0")
+        if epsilon < 0:
+            raise ValueError("Mech_RP_Pois calibration requires epsilon >= 0")
+        if not (0.0 < delta < 1.0):
+            raise ValueError("Mech_RP_Pois calibration requires delta in (0, 1)")
+        if not (delta < self.q <= 1.0):
+            raise ValueError("Mech_RP_Pois calibration requires delta < q <= 1")
+
+        epsilon_0 = float(np.log1p(np.expm1(epsilon) / self.q))
+        delta_0 = float(delta / self.q)
+
+        inner_privacy = type(privacy_spec)(
+            epsilon=epsilon_0,
+            delta=delta_0,
+            adjacency=privacy_spec.adjacency,
+        )
+        self._inner.calibrate(inner_privacy, public_meta)
+        self._cal = {
+            "epsilon": epsilon,
+            "delta": delta,
+            "q": self.q,
+            "epsilon_0": epsilon_0,
+            "delta_0": delta_0,
+            "r": self.r,
+            "inner_calibration": self._inner.diagnostics(),
+        }
+        self._calibrated = True
+
+    def release(self, train_data: np.ndarray, seed: int) -> ReleaseBundle:
+        assert self._calibrated, "Must call calibrate() first"
+        t_start = time.time()
+
+        rng = np.random.RandomState(seed)
+        n = train_data.shape[0]
+        mask = rng.uniform(size=n) < self.q
+        d_sub = train_data[mask]
+
+        inner_seed = int(rng.randint(0, np.iinfo(np.uint32).max, dtype=np.uint32))
+        rb = self._inner.release(d_sub, inner_seed)
+        rb.mechanism_name = self.name
+        rb.calibration = dict(self._cal)
+        rb.diagnostics = {
+            "q": self.q,
+            "subsample_size": int(mask.sum()),
+            "subsample_rate_realized": float(mask.mean()) if n > 0 else 0.0,
+            "inner_seed": inner_seed,
+            **rb.diagnostics,
+        }
+        rb.runtime_sec = time.time() - t_start
+        return rb
+
+    def diagnostics(self) -> dict[str, Any]:
+        return dict(self._cal)

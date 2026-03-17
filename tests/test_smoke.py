@@ -61,6 +61,29 @@ def test_mini_run():
         assert "release_metrics" in rec
 
 
+def test_mini_run_with_pois_wrapper():
+    """Run the subsampled RP wrapper end-to-end."""
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
+    from rpbench.runners.run_demo import run_demo
+
+    cfg = DemoConfig(
+        dataset="autompg",
+        mechanisms=["Mech_RP_Pois"],
+        task="OLSFromRelease",
+        epsilon_grid=[2.0],
+        delta_rule="1/n^2",
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
+        split=SplitSpec(train_fraction=0.8, seed=42),
+        preprocess=PreprocessSpec(),
+        mech_params={"Mech_RP_Pois": {"r": 24, "q": 0.5}},
+        output_root=tempfile.mkdtemp(),
+    )
+
+    records = run_demo(cfg)
+    assert len(records) >= 2
+    assert any(rec["mechanism"] == "Mech_RP_Pois" for rec in records)
+
+
 def test_report_builder():
     """Test that the report builder can consume saved outputs."""
     import tempfile

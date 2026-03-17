@@ -37,9 +37,8 @@ class OLSFromRelease(Task):
         assert xty is not None
 
         if (
-            release_bundle.mechanism_name == "Mech_RP"
+            release_bundle.mechanism_name in {"Mech_RP", "Mech_RP_Pois"}
             and release_bundle.sketch_matrix is not None
-            and "lambda_ridge" in release_bundle.calibration
         ):
             m_tilde = release_bundle.sketch_matrix
             d = xtx.shape[0]

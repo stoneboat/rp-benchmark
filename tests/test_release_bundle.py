@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from rpbench.config import PrivacySpec
-from rpbench.mechanisms.rp_ndis import MechRP
+from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.mechanisms.base import ReleaseBundle
 from rpbench.tasks.ols_from_release import OLSFromRelease
@@ -57,6 +57,24 @@ def test_blocki_jl_release():
     assert rb.xty_hat.shape == (meta["d"],)
     assert rb.runtime_sec >= 0
     assert "w" in rb.calibration
+
+
+def test_mech_rp_pois_release():
+    A, meta = _make_data()
+    mech = MechRPPois(r=24, q=0.5)
+    ps = PrivacySpec(epsilon=1.0, delta=1e-4)
+    mech.calibrate(ps, meta)
+    rb = mech.release(A, seed=42)
+
+    assert isinstance(rb, ReleaseBundle)
+    assert rb.mechanism_name == "Mech_RP_Pois"
+    assert rb.xtx_hat is not None
+    assert rb.xty_hat is not None
+    assert rb.xtx_hat.shape == (meta["d"], meta["d"])
+    assert rb.xty_hat.shape == (meta["d"],)
+    assert rb.runtime_sec >= 0
+    assert rb.calibration["q"] == 0.5
+    assert "subsample_size" in rb.diagnostics
 
 
 def test_both_same_shape():

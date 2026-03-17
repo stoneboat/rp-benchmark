@@ -1,14 +1,14 @@
 # WF-001 Demo Run Summary
 
 **Dataset:** autompg  
-**Mechanisms:** Blocki12_JL, Mech_RP  
+**Mechanisms:** Blocki12_JL, Mech_RP, Mech_RP_Pois  
 **Task:** OLSFromRelease  
 **Epsilon grid:** [0.5, 1.0, 2.0, 4.0]  
 **Delta:** 1.00e-06  
 **Seed batch:** mode=fixed, base_seed=0, count=5  
 **Expanded seeds:** [1874364848, 2613022947, 2968811710, 3141116543, 3964924996]  
 **Trial indices:** [0, 1, 2, 3, 4]  
-**Total records:** 41  
+**Total records:** 61  
 
 **Non-private baseline test MSE:** 0.109278
 
