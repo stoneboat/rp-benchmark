@@ -35,10 +35,7 @@ class Blocki12JL(Mechanism):
         if r <= 0:
             raise ValueError("Blocki12_JL calibration requires r > 0")
 
-        denom = epsilon * math.log(16.0 * r / delta)
-        if denom <= 0:
-            raise ValueError("Blocki12_JL calibration: non-positive denominator")
-        w = 16.0 * math.sqrt(r * math.log(2.0 / delta)) / denom
+        w = 16.0 * math.sqrt(r * math.log(2.0 / delta)) * math.log(16.0 * r / delta) / epsilon
 
         self._cal = {
             "epsilon": epsilon,
