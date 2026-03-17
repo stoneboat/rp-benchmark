@@ -12,9 +12,33 @@ def test_import():
     assert rpbench.__version__
 
 
+def test_seed_batch_resolution_is_cached():
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
+
+    cfg = DemoConfig(
+        dataset="autompg",
+        mechanisms=["Mech_RP"],
+        task="OLSFromRelease",
+        epsilon_grid=[2.0],
+        delta_rule="1/n^2",
+        seed_batch=SeedBatchSpec(mode="random", count=3),
+        split=SplitSpec(train_fraction=0.8, seed=42),
+        preprocess=PreprocessSpec(),
+        mech_params={"Mech_RP": {"r": 24}},
+        output_root=tempfile.mkdtemp(),
+    )
+
+    base_seed_1, seeds_1 = cfg.resolve_trial_seeds()
+    base_seed_2, seeds_2 = cfg.resolve_trial_seeds()
+
+    assert base_seed_1 == base_seed_2
+    assert seeds_1 == seeds_2
+    assert len(seeds_1) == 3
+
+
 def test_mini_run():
     """Run 1 mechanism, 1 epsilon, 1 seed end-to-end."""
-    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
     from rpbench.runners.run_demo import run_demo
 
     cfg = DemoConfig(
@@ -23,7 +47,7 @@ def test_mini_run():
         task="OLSFromRelease",
         epsilon_grid=[2.0],
         delta_rule="1/n^2",
-        seeds=[0],
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
         split=SplitSpec(train_fraction=0.8, seed=42),
         preprocess=PreprocessSpec(),
         mech_params={"Mech_RP": {"r": 24}},
@@ -42,7 +66,7 @@ def test_report_builder():
     import tempfile
     from pathlib import Path
 
-    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
     from rpbench.runners.run_demo import run_demo
     from rpbench.utils.io import save_jsonl, load_jsonl
     from rpbench.reporting.tables import build_summary_table
@@ -57,7 +81,7 @@ def test_report_builder():
         task="OLSFromRelease",
         epsilon_grid=[1.0, 2.0],
         delta_rule="1/n^2",
-        seeds=[0],
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
         split=SplitSpec(train_fraction=0.8, seed=42),
         preprocess=PreprocessSpec(),
         mech_params={"Mech_RP": {"r": 24}},

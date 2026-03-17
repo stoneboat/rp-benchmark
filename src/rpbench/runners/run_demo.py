@@ -1,4 +1,4 @@
-"""Core demo runner: loops over mechanisms x epsilons x seeds."""
+"""Core demo runner: loops over mechanisms x epsilons x generated trial seeds."""
 
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
     pub_meta = adapter.public_meta(bundle)
     n_train = pub_meta["n"]
     delta = cfg.compute_delta(n_train)
+    base_seed, trial_seeds = cfg.resolve_trial_seeds()
 
     # Precompute true Gram for release metric
     xtx_true = gram_matrix(bundle.X_train)
@@ -77,15 +78,18 @@ def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
         "provenance": {"n_train": n_train, "n_test": pub_meta.get("n_test", len(bundle.y_test)), "d": pub_meta["d"]},
     })
 
-    total = len(cfg.mechanisms) * len(cfg.epsilon_grid) * len(cfg.seeds)
+    total = len(cfg.mechanisms) * len(cfg.epsilon_grid) * len(trial_seeds)
     done = 0
 
     for mech_name in cfg.mechanisms:
         params = cfg.mech_params.get(mech_name, {})
         for epsilon in cfg.epsilon_grid:
-            for seed in cfg.seeds:
+            for seed_index, seed in enumerate(trial_seeds):
                 done += 1
-                print(f"  [{done}/{total}] {mech_name} eps={epsilon} seed={seed}")
+                print(
+                    f"  [{done}/{total}] {mech_name} eps={epsilon} "
+                    f"trial={seed_index} seed={seed}"
+                )
 
                 mech = _build_mechanism(mech_name, params)
                 ps = PrivacySpec(epsilon=epsilon, delta=delta)
@@ -108,6 +112,7 @@ def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
                     "epsilon": epsilon,
                     "delta": delta,
                     "seed": seed,
+                    "seed_index": seed_index,
                     "release_metrics": {"rel_fro_xtx": rel_fro},
                     "downstream_metrics": ds_metrics,
                     "runtime": {"runtime_sec": rb.runtime_sec},
@@ -116,6 +121,11 @@ def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
                         "n_train": n_train,
                         "d": pub_meta["d"],
                         "l": pub_meta["l"],
+                        "seed_batch": {
+                            "mode": cfg.seed_batch.mode,
+                            "base_seed": base_seed,
+                            "count": len(trial_seeds),
+                        },
                         "calibration": rb.calibration,
                     },
                 })

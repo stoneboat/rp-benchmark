@@ -23,10 +23,11 @@ stage-1 implementation of WF-001.
   OLS directly on the sketch. Both approaches are mathematically
   equivalent for a single sketch; the Gram route is chosen because the
   release metric requires `xtx_hat` explicitly.
-- **Single-trial per seed**: The old repo's `OptimalRP_mech` generates
-  `num_samples` sketches in one call. For the benchmark, each
-  `(mechanism, epsilon, seed)` trial produces exactly one sketch
-  realization.
+- **Single-trial per expanded seed**: The old repo's `OptimalRP_mech`
+  generates `num_samples` sketches in one call. For the benchmark, each
+  `(mechanism, epsilon, expanded_seed)` trial produces exactly one sketch
+  realization. Expanded seeds are generated deterministically from one
+  batch root seed.
 
 ## Blocki12_JL
 

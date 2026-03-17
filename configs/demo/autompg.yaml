@@ -3,7 +3,10 @@ mechanisms: [Mech_RP, Blocki12_JL]
 task: OLSFromRelease
 epsilon_grid: [0.5, 1.0, 2.0, 4.0]
 delta_rule: 1e-6
-seeds: [0, 1, 2, 3, 4]
+seed_batch:
+  mode: fixed
+  base_seed: 0
+  count: 5
 split:
   train_fraction: 0.8
   seed: 42

@@ -19,6 +19,7 @@ def write_summary(
     mechanisms = sorted({r["mechanism"] for r in records if r["mechanism"] != "NonPrivate"})
     epsilons = sorted({r["epsilon"] for r in records if r["epsilon"] is not None})
     seeds = sorted({r["seed"] for r in records if r["seed"] is not None})
+    seed_indices = sorted({r.get("seed_index") for r in records if r.get("seed_index") is not None})
 
     delta_val = None
     dataset = None
@@ -29,9 +30,12 @@ def write_summary(
             dataset = r["dataset"]
 
     np_mse = None
+    seed_batch = None
     for r in records:
         if r["mechanism"] == "NonPrivate":
             np_mse = r["downstream_metrics"]["test_mse"]
+        if seed_batch is None:
+            seed_batch = r.get("provenance", {}).get("seed_batch")
 
     lines = [
         "# WF-001 Demo Run Summary",
@@ -41,7 +45,13 @@ def write_summary(
         f"**Task:** OLSFromRelease  ",
         f"**Epsilon grid:** {epsilons}  ",
         f"**Delta:** {delta_val:.2e}  " if delta_val else "**Delta:** 1/n^2  ",
-        f"**Seeds:** {seeds}  ",
+        (
+            f"**Seed batch:** mode={seed_batch['mode']}, base_seed={seed_batch['base_seed']}, "
+            f"count={seed_batch['count']}  "
+            if seed_batch is not None else f"**Seeds:** {seeds}  "
+        ),
+        f"**Expanded seeds:** {seeds}  " if seeds else "",
+        f"**Trial indices:** {seed_indices}  " if seed_indices else "",
         f"**Total records:** {n_total}  ",
         "",
     ]

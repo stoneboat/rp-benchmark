@@ -30,8 +30,12 @@ def main() -> None:
     if args.output_root:
         cfg.output_root = args.output_root
 
+    base_seed, trial_seeds = cfg.resolve_trial_seeds()
     print(f"Running demo: {cfg.dataset}, mechanisms={cfg.mechanisms}")
-    print(f"  epsilon_grid={cfg.epsilon_grid}, seeds={cfg.seeds}")
+    print(
+        f"  epsilon_grid={cfg.epsilon_grid}, "
+        f"seed_batch={{mode={cfg.seed_batch.mode}, base_seed={base_seed}, count={len(trial_seeds)}}}"
+    )
 
     records = run_demo(cfg)
 

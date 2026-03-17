@@ -18,7 +18,7 @@ pip install -r requirements.txt
 bash scripts/local_scripts/install_local.sh
 
 # 3. Run the demo benchmark
-python scripts/run_demo.py --config configs/demo/wf001_demo_autompg.yaml
+python scripts/run_demo.py --config configs/demo/autompg.yaml
 
 # 4. Build the report
 python scripts/build_report.py \
@@ -44,7 +44,7 @@ eval "$(conda shell.bash hook)"
 conda activate /tmp/python-venv/rp_benchmark_venv
 
 # 3. Run the demo
-python scripts/run_demo.py --config configs/demo/wf001_demo_autompg.yaml
+python scripts/run_demo.py --config configs/demo/autompg.yaml
 
 # 4. Build the report
 python scripts/build_report.py --input-root data/outputs/runs --output-root data/outputs/reports
@@ -68,7 +68,7 @@ the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom
 ## What the demo does
 
 1. Loads and preprocesses AutoMPG (7 features, `mpg` target).
-2. For each mechanism × epsilon × seed:
+2. For each mechanism × epsilon × trial seed:
    - Calibrates the mechanism under (ε, δ)-DP.
    - Uses the same explicit projection dimension `r` for both mechanisms.
    - Produces a private release of X^T X and X^T y.
@@ -80,13 +80,13 @@ the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom
 
 ## Configuration
 
-See `configs/demo/wf001_demo_autompg.yaml` for the demo contract:
+See `configs/demo/autompg.yaml` for the demo contract:
 
 - **Mechanisms**: Mech_RP, Blocki12_JL
 - **Epsilons**: 0.5, 1.0, 2.0, 4.0
 - **Delta**: 1/n²
 - **Shared sketch dimension**: r = 96
-- **Seeds**: 0–4
+- **Seed batch**: fixed root seed 0, expanded to 5 trial seeds
 - **Split**: 80/20 train/test, seed 42
 
 ## Repo structure
