@@ -8,6 +8,7 @@ from rpbench.config import PrivacySpec
 from rpbench.mechanisms.rp_ndis import MechRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.mechanisms.base import ReleaseBundle
+from rpbench.tasks.ols_from_release import OLSFromRelease
 
 
 def _make_data(n=100, d=5, seed=0):
@@ -70,3 +71,17 @@ def test_both_same_shape():
 
     assert rb_rp.xtx_hat.shape == rb_jl.xtx_hat.shape
     assert rb_rp.xty_hat.shape == rb_jl.xty_hat.shape
+
+
+def test_ols_from_release_stabilizes_indefinite_xtx():
+    task = OLSFromRelease()
+    rb = ReleaseBundle(
+        mechanism_name="test",
+        release_kind="gram_blocks",
+        xtx_hat=np.array([[2.0, 0.0], [0.0, -1.0]]),
+        xty_hat=np.array([4.0, 7.0]),
+    )
+
+    beta = task.fit_from_release(rb, train_meta={})
+
+    np.testing.assert_allclose(beta, np.array([2.0, 0.0]))

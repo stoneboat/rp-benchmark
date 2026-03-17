@@ -15,14 +15,27 @@ class OLSFromRelease(Task):
 
     name = "OLSFromRelease"
 
+    def __init__(self, rcond: float = 1e-6):
+        self.rcond = rcond
+
     def fit_from_release(self, release_bundle: ReleaseBundle, train_meta: dict) -> np.ndarray:
         xtx = release_bundle.xtx_hat
         xty = release_bundle.xty_hat
+        assert xtx is not None
+        assert xty is not None
 
-        try:
-            beta_hat = np.linalg.solve(xtx, xty)
-        except np.linalg.LinAlgError:
-            beta_hat, *_ = np.linalg.lstsq(xtx, xty, rcond=None)
+        # Symmetrize and solve with a truncated spectral pseudoinverse.
+        # This suppresses negative / near-zero directions introduced by
+        # sketching noise, which otherwise cause unstable downstream OLS.
+        xtx_sym = 0.5 * (xtx + xtx.T)
+        eigvals, eigvecs = np.linalg.eigh(xtx_sym)
+        scale = float(np.max(np.abs(eigvals))) if eigvals.size else 0.0
+        cutoff = max(self.rcond * scale, 0.0)
+
+        inv_eigvals = np.zeros_like(eigvals)
+        keep = eigvals > cutoff
+        inv_eigvals[keep] = 1.0 / eigvals[keep]
+        beta_hat = eigvecs @ (inv_eigvals * (eigvecs.T @ xty))
 
         return beta_hat
 
