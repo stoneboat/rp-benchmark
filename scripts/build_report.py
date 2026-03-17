@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from rpbench.reporting.tables import build_summary_table
-from rpbench.reporting.figures import plot_eps_vs_mse
+from rpbench.reporting.figures import ols_plot_eps_vs_mse, plot_eps_vs_covariance_error
 from rpbench.reporting.summary import write_summary
 from rpbench.utils.io import load_jsonl
 
@@ -40,12 +40,16 @@ def main() -> None:
     build_summary_table(records, csv_path)
     print(f"Summary table: {csv_path}")
 
-    fig_path = out / "eps_vs_test_mse.png"
-    plot_eps_vs_mse(records, fig_path)
-    print(f"Figure: {fig_path}")
+    ols_fig_path = out / "ols_plot_eps_vs_mse.png"
+    ols_plot_eps_vs_mse(records, ols_fig_path)
+    print(f"OLS figure: {ols_fig_path}")
+
+    covariance_fig_path = out / "covariance_plot_eps_vs_error.png"
+    plot_eps_vs_covariance_error(records, covariance_fig_path)
+    print(f"Covariance figure: {covariance_fig_path}")
 
     md_path = out / "demo_summary.md"
-    write_summary(records, md_path, fig_path.name, csv_path.name)
+    write_summary(records, md_path, ols_fig_path.name, covariance_fig_path.name, csv_path.name)
     print(f"Summary: {md_path}")
 
 

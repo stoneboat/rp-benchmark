@@ -12,9 +12,12 @@ import numpy as np
 import pandas as pd
 
 
-def plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) -> None:
-    """Plot epsilon vs test MSE with one line per mechanism."""
-
+def _aggregate_metric(
+    records: list[dict[str, Any]],
+    metric_key: str,
+    metric_section: str,
+) -> tuple[pd.DataFrame, float | None]:
+    """Aggregate a scalar metric by mechanism and epsilon."""
     rows = []
     delta_val = None
     for rec in records:
@@ -25,17 +28,26 @@ def plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) -> N
         rows.append({
             "mechanism": rec["mechanism"],
             "epsilon": rec["epsilon"],
-            "test_mse": rec["downstream_metrics"]["test_mse"],
+            metric_key: rec[metric_section][metric_key],
         })
 
     df = pd.DataFrame(rows)
     if df.empty:
-        return
+        return df, delta_val
 
     agg = df.groupby(["mechanism", "epsilon"]).agg(
-        mean=("test_mse", "mean"),
-        std=("test_mse", "std"),
+        mean=(metric_key, "mean"),
+        std=(metric_key, "std"),
     ).reset_index()
+    return agg, delta_val
+
+
+def ols_plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) -> None:
+    """Plot epsilon vs OLS test MSE with one line per mechanism."""
+
+    agg, delta_val = _aggregate_metric(records, "test_mse", "downstream_metrics")
+    if agg.empty:
+        return
 
     # Find non-private baseline
     np_mse = None
@@ -57,9 +69,38 @@ def plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) -> N
         ax.axhline(np_mse, color="gray", linestyle="--", alpha=0.7, label="NonPrivate")
 
     ax.set_xlabel(r"$\varepsilon$")
-    ax.set_ylabel("Test MSE")
+    ax.set_ylabel("OLS Test MSE")
     delta_str = f"{delta_val:.2e}" if delta_val else "1/n^2"
-    ax.set_title(f"Privacy-Utility: AutoMPG OLS (δ = {delta_str})")
+    ax.set_title(f"OLS Downstream Utility: AutoMPG (δ = {delta_str})")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_eps_vs_covariance_error(records: list[dict[str, Any]], output_path: str | Path) -> None:
+    """Plot epsilon vs covariance quality using relative Frobenius error."""
+
+    agg, delta_val = _aggregate_metric(records, "rel_fro_xtx", "release_metrics")
+    if agg.empty:
+        return
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+
+    for mech_name, grp in agg.groupby("mechanism"):
+        grp = grp.sort_values("epsilon")
+        ax.errorbar(
+            grp["epsilon"], grp["mean"], yerr=grp["std"],
+            marker="o", capsize=3, label=mech_name,
+        )
+
+    ax.set_xlabel(r"$\varepsilon$")
+    ax.set_ylabel(r"Relative Frobenius Error of $X^\top X$")
+    delta_str = f"{delta_val:.2e}" if delta_val else "1/n^2"
+    ax.set_title(f"Covariance Release Quality: AutoMPG (δ = {delta_str})")
     ax.legend()
     ax.grid(True, alpha=0.3)
 

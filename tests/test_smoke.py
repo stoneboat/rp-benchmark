@@ -46,7 +46,7 @@ def test_report_builder():
     from rpbench.runners.run_demo import run_demo
     from rpbench.utils.io import save_jsonl, load_jsonl
     from rpbench.reporting.tables import build_summary_table
-    from rpbench.reporting.figures import plot_eps_vs_mse
+    from rpbench.reporting.figures import ols_plot_eps_vs_mse, plot_eps_vs_covariance_error
     from rpbench.reporting.summary import write_summary
 
     tmpdir = Path(tempfile.mkdtemp())
@@ -78,10 +78,20 @@ def test_report_builder():
     build_summary_table(loaded, csv_path)
     assert csv_path.exists()
 
-    fig_path = report_dir / "test_figure.png"
-    plot_eps_vs_mse(loaded, fig_path)
+    fig_path = report_dir / "ols_test_figure.png"
+    ols_plot_eps_vs_mse(loaded, fig_path)
     assert fig_path.exists()
 
+    cov_fig_path = report_dir / "covariance_test_figure.png"
+    plot_eps_vs_covariance_error(loaded, cov_fig_path)
+    assert cov_fig_path.exists()
+
     md_path = report_dir / "summary.md"
-    write_summary(loaded, md_path, "test_figure.png", "summary_table.csv")
+    write_summary(
+        loaded,
+        md_path,
+        "ols_test_figure.png",
+        "covariance_test_figure.png",
+        "summary_table.csv",
+    )
     assert md_path.exists()

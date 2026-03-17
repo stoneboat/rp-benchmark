@@ -9,7 +9,8 @@ from typing import Any
 def write_summary(
     records: list[dict[str, Any]],
     output_path: str | Path,
-    figure_name: str,
+    ols_figure_name: str,
+    covariance_figure_name: str,
     table_name: str,
 ) -> None:
     """Write a markdown summary of the demo run."""
@@ -54,13 +55,20 @@ def write_summary(
         "",
         f"See [{table_name}]({table_name}) for the aggregate table.",
         "",
-        f"![Privacy-Utility Curve]({figure_name})",
+        "### OLS Downstream Task",
+        "",
+        f"![OLS Downstream Utility Plot]({ols_figure_name})",
+        "",
+        "### Covariance Release Quality",
+        "",
+        f"![Covariance Release Quality Plot]({covariance_figure_name})",
         "",
         "## Outputs",
         "",
         "- Row-level results: `data/outputs/runs/demo_results.jsonl`",
         f"- Summary table: `{table_name}`",
-        f"- Figure: `{figure_name}`",
+        f"- OLS figure: `{ols_figure_name}`",
+        f"- Covariance figure: `{covariance_figure_name}`",
         "",
     ])
 
