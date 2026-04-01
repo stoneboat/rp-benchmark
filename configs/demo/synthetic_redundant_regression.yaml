@@ -1,0 +1,45 @@
+# Redundant-cluster synthetic regression: Poisson thinning q=0.2/0.8 in dataset meta;
+# demo runs include Blocki12_JL alongside RP baselines (r aligned at 50).
+dataset: synthetic_redundant_regression
+dataset_params:
+  feature_dim: 12
+  n_prototypes: 50
+  copies_per_prototype: 100
+  cluster_noise: 0.02
+  label_noise: 0.02
+  generation_seed: 12345
+  prototype_spectrum_decay: 0.85
+  prototype_spectrum_scale: 1.0
+  poisson_diag_qs: [0.2, 0.8]
+  poisson_diag_trials: 25
+  poisson_diag_seed: 4242
+  blocki12_jl_diag_rs: [50]
+  blocki12_jl_diag_trials: 25
+  blocki12_jl_diag_seed: 4243
+mechanisms: [Mech_RP, Mech_RP_Pois]
+task: OLSFromRelease
+epsilon_grid: [0.1, 0.2, 0.5, 1.0]
+delta_rule: 1e-6
+seed_batch:
+  mode: fixed
+  base_seed: 0
+  count: 10
+split:
+  train_fraction: 0.8
+  seed: 42
+preprocess:
+  scale_x: true
+  clip_x: true
+  clip_x_bound: 3.0
+  clip_y: true
+  clip_y_bound: 1.0
+  missing_policy: drop
+mech_params:
+  Mech_RP:
+    r: 30
+  Mech_RP_Pois:
+    r: 30
+    q: 0.3
+  Blocki12_JL:
+    r: 30
+output_root: data/outputs/runs

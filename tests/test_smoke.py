@@ -84,6 +84,92 @@ def test_mini_run_with_pois_wrapper():
     assert any(rec["mechanism"] == "Mech_RP_Pois" for rec in records)
 
 
+def test_synthetic_redundant_regression_registry():
+    from rpbench.runners.run_demo import DATASET_REGISTRY
+
+    assert "synthetic_redundant_regression" in DATASET_REGISTRY
+    assert DATASET_REGISTRY["synthetic_redundant_regression"].name == "synthetic_redundant_regression"
+
+
+def test_synthetic_redundant_regression_deterministic():
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
+
+    adapter = SyntheticRedundantRegressionAdapter(
+        feature_dim=5,
+        n_prototypes=12,
+        copies_per_prototype=8,
+        generation_seed=2026,
+        poisson_diag_trials=3,
+    )
+    split = SplitSpec(train_fraction=0.8, seed=11)
+    pre = PreprocessSpec()
+    b1 = adapter.load(split, pre)
+    b2 = adapter.load(split, pre)
+    import numpy as np
+
+    np.testing.assert_array_equal(b1.X_train, b2.X_train)
+    np.testing.assert_array_equal(b1.y_train, b2.y_train)
+    assert "geometry_diagnostics" in b1.meta
+    assert "poisson_subsampling_diagnostics" in b1.meta
+    assert "blocki12_jl_diagnostics" in b1.meta
+    assert b1.meta["synthetic_params"]["generation_seed_from_config"] == 2026
+    assert b1.meta["synthetic_params"]["generation_seed"] == 2026
+
+
+def test_synthetic_redundant_regression_random_generation_seed_when_omitted():
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
+
+    adapter = SyntheticRedundantRegressionAdapter(
+        feature_dim=4,
+        n_prototypes=8,
+        copies_per_prototype=4,
+        poisson_diag_trials=2,
+    )
+    split = SplitSpec(train_fraction=0.8, seed=11)
+    pre = PreprocessSpec()
+    b = adapter.load(split, pre)
+    sp = b.meta["synthetic_params"]
+    assert sp["generation_seed_from_config"] is None
+    assert isinstance(sp["generation_seed"], int)
+
+
+def test_synthetic_redundant_regression_mini_benchmark():
+    """Small synthetic run: shapes OK for OLSFromRelease."""
+    import tempfile
+
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
+    from rpbench.runners.run_demo import run_demo
+
+    cfg = DemoConfig(
+        dataset="synthetic_redundant_regression",
+        mechanisms=["Mech_RP", "Mech_RP_Pois"],
+        task="OLSFromRelease",
+        epsilon_grid=[2.0],
+        delta_rule="1e-6",
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
+        split=SplitSpec(train_fraction=0.8, seed=42),
+        preprocess=PreprocessSpec(),
+        mech_params={"Mech_RP": {"r": 24}, "Mech_RP_Pois": {"r": 24, "q": 0.5}},
+        output_root=tempfile.mkdtemp(),
+        dataset_params={
+            "feature_dim": 6,
+            "n_prototypes": 20,
+            "copies_per_prototype": 12,
+            "generation_seed": 123,
+            "poisson_diag_trials": 4,
+        },
+    )
+
+    records = run_demo(cfg)
+    assert len(records) >= 2
+    priv = [r for r in records if r["mechanism"] != "NonPrivate"]
+    assert priv
+    for r in priv:
+        assert r["downstream_metrics"]["test_mse"] >= 0.0
+
+
 def test_report_builder():
     """Test that the report builder can consume saved outputs."""
     import tempfile

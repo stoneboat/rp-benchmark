@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 from typing import Any
 
@@ -10,6 +11,7 @@ import numpy as np
 from rpbench.config import DemoConfig, PrivacySpec
 from rpbench.datasets.autompg import AutoMPGAdapter
 from rpbench.datasets.bike_sharing import BikeSharingAdapter
+from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
 from rpbench.datasets.base import DatasetBundle
 from rpbench.mechanisms.base import Mechanism
 from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois
@@ -29,7 +31,17 @@ MECHANISM_REGISTRY: dict[str, type] = {
 DATASET_REGISTRY: dict[str, type] = {
     "autompg": AutoMPGAdapter,
     "bike_sharing": BikeSharingAdapter,
+    "synthetic_redundant_regression": SyntheticRedundantRegressionAdapter,
 }
+
+
+def _adapter_init_kwargs(adapter_cls: type, params: dict[str, Any]) -> dict[str, Any]:
+    """Pass only kwargs accepted by the adapter ``__init__`` (ignores unknown keys)."""
+    if not params:
+        return {}
+    sig = inspect.signature(adapter_cls.__init__)
+    names = {p for p in sig.parameters if p != "self"}
+    return {k: v for k, v in params.items() if k in names}
 
 
 def _build_mechanism(name: str, params: dict[str, Any]) -> Mechanism:
@@ -42,7 +54,7 @@ def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
 
     # Load dataset
     adapter_cls = DATASET_REGISTRY[cfg.dataset]
-    adapter = adapter_cls()
+    adapter = adapter_cls(**_adapter_init_kwargs(adapter_cls, cfg.dataset_params))
     bundle = adapter.load(cfg.split, cfg.preprocess)
     pub_meta = adapter.public_meta(bundle)
     n_train = pub_meta["n"]

@@ -54,6 +54,7 @@ class DemoConfig:
     preprocess: PreprocessSpec
     mech_params: dict[str, dict[str, Any]]
     output_root: str = "data/outputs/runs"
+    dataset_params: dict[str, Any] = field(default_factory=dict)
     _resolved_base_seed: int | None = field(default=None, init=False, repr=False)
     _resolved_trial_seeds: list[int] | None = field(default=None, init=False, repr=False)
 
@@ -106,4 +107,5 @@ def load_config(path: str | Path) -> DemoConfig:
         preprocess=preprocess,
         mech_params=raw.get("mech_params", {}),
         output_root=raw.get("output_root", "data/outputs/runs"),
+        dataset_params=raw.get("dataset_params") or {},
     )
