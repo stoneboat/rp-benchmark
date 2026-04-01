@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 import uuid
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,11 @@ from typing import Any
 
 def generate_run_id() -> str:
     return uuid.uuid4().hex[:12]
+
+
+def short_timestamp() -> str:
+    """Return compact timestamp for file suffixes."""
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 def save_jsonl(records: list[dict[str, Any]], path: str | Path) -> None:

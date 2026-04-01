@@ -1,6 +1,6 @@
 # WF-001 Demo Run Summary
 
-**Dataset:** autompg  
+**Dataset:** bike_sharing  
 **Mechanisms:** Blocki12_JL, Mech_RP, Mech_RP_Pois  
 **Task:** OLSFromRelease  
 **Epsilon grid:** [0.5, 1.0, 2.0, 4.0]  
@@ -10,7 +10,7 @@
 **Trial indices:** [0, 1, 2, 3, 4]  
 **Total records:** 61  
 
-**Non-private baseline test MSE:** 0.109278
+**Non-private baseline test MSE:** 0.305058
 
 ## Results
 

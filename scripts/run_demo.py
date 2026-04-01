@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from rpbench.config import load_config
 from rpbench.runners.run_demo import run_demo
-from rpbench.utils.io import save_jsonl
+from rpbench.utils.io import save_jsonl, short_timestamp
 
 
 def main() -> None:
@@ -39,9 +39,14 @@ def main() -> None:
 
     records = run_demo(cfg)
 
-    out_path = Path(cfg.output_root) / "demo_results.jsonl"
-    save_jsonl(records, out_path)
-    print(f"\nSaved {len(records)} records to {out_path}")
+    ts = short_timestamp()
+    out_dir = Path(cfg.output_root)
+    out_path_ts = out_dir / f"demo_results_{ts}.jsonl"
+    out_path_latest = out_dir / "demo_results.jsonl"
+    save_jsonl(records, out_path_ts)
+    save_jsonl(records, out_path_latest)
+    print(f"\nSaved {len(records)} records to {out_path_ts}")
+    print(f"Updated latest pointer: {out_path_latest}")
 
 
 if __name__ == "__main__":

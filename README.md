@@ -2,9 +2,8 @@
 
 RP-family differential privacy benchmark — WF-001 Stage 1.
 
-Compares **Mech_RP** (NDIS paper, arxiv 2309.01243) and **Blocki12_JL**
-(Blocki et al. 2012, arxiv 1204.2136) on the AutoMPG dataset using
-OLS as the downstream task.
+Compares RP-family mechanisms on regression datasets (currently `autompg`
+and `bike_sharing`) using OLS as the downstream task.
 
 ## Quick start (local)
 
@@ -17,8 +16,11 @@ pip install -r requirements.txt
 # 2. (Alternative) Use the install script
 bash scripts/local_scripts/install_local.sh
 
-# 3. Run the demo benchmark
+# 3. Run the demo benchmark (AutoMPG)
 python scripts/run_demo.py --config configs/demo/autompg.yaml
+
+# 3b. Run Bike Sharing benchmark
+python scripts/run_demo.py --config configs/demo/bike_sharing.yaml
 
 # 4. Build the report
 python scripts/build_report.py \
@@ -43,8 +45,11 @@ module load anaconda
 eval "$(conda shell.bash hook)"
 conda activate /tmp/python-venv/rp_benchmark_venv
 
-# 3. Run the demo
+# 3. Run the demo (AutoMPG)
 python scripts/run_demo.py --config configs/demo/autompg.yaml
+
+# 3b. Run Bike Sharing benchmark
+python scripts/run_demo.py --config configs/demo/bike_sharing.yaml
 
 # 4. Build the report
 python scripts/build_report.py --input-root data/outputs/runs --output-root data/outputs/reports
@@ -67,25 +72,29 @@ the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom
 
 ## What the demo does
 
-1. Loads and preprocesses AutoMPG (7 features, `mpg` target).
+1. Loads and preprocesses the configured dataset (`autompg` or `bike_sharing`).
 2. For each mechanism × epsilon × trial seed:
    - Calibrates the mechanism under (ε, δ)-DP.
    - Uses the same explicit projection dimension `r` for both mechanisms.
    - Produces a private release of X^T X and X^T y.
    - Fits OLS from the release.
    - Evaluates test MSE and relative Frobenius error.
-3. Saves row-level JSONL to `data/outputs/runs/demo_results.jsonl`.
-4. The report builder aggregates results into a CSV table, PNG figure
-   (ε vs test MSE), and markdown summary.
+3. Saves row-level JSONL to timestamped files under `data/outputs/runs/`, e.g.
+   `demo_results_YYYYMMDD-HHMMSS.jsonl` (and updates `demo_results.jsonl` as latest pointer).
+4. The report builder aggregates results into timestamped CSV/PNG/MD outputs under
+   `data/outputs/reports/` (and also updates stable latest filenames).
 
 ## Configuration
 
-See `configs/demo/autompg.yaml` for the demo contract:
+See configs under `configs/demo/`:
 
-- **Mechanisms**: Mech_RP, Blocki12_JL
+- `autompg.yaml`
+- `bike_sharing.yaml`
+
+- **Mechanisms**: Mech_RP, Mech_RP_Pois, Blocki12_JL
 - **Epsilons**: 0.5, 1.0, 2.0, 4.0
 - **Delta**: 1/n²
-- **Shared sketch dimension**: r = 96
+- **Default sketch dimension**: r = 50
 - **Seed batch**: fixed root seed 0, expanded to 5 trial seeds
 - **Split**: 80/20 train/test, seed 42
 
@@ -113,3 +122,4 @@ rp-benchmark/
 - NDIS paper: arxiv 2309.01243 (`docs/notes/ndis-paper.pdf`)
 - Blocki et al. 2012: arxiv 1204.2136
 - AutoMPG: UCI ML Repository, data_id=196
+- Bike Sharing: OpenML Bike Sharing task (hourly/daily variants)

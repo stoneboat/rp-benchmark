@@ -9,6 +9,7 @@ import numpy as np
 
 from rpbench.config import DemoConfig, PrivacySpec
 from rpbench.datasets.autompg import AutoMPGAdapter
+from rpbench.datasets.bike_sharing import BikeSharingAdapter
 from rpbench.datasets.base import DatasetBundle
 from rpbench.mechanisms.base import Mechanism
 from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois
@@ -27,6 +28,7 @@ MECHANISM_REGISTRY: dict[str, type] = {
 
 DATASET_REGISTRY: dict[str, type] = {
     "autompg": AutoMPGAdapter,
+    "bike_sharing": BikeSharingAdapter,
 }
 
 
