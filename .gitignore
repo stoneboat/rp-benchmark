@@ -31,3 +31,8 @@ Thumbs.db
 # Reports (generated)
 reports/examples/*.png
 reports/examples/*.csv
+
+# local tool dirs
+artifacts/**/.obsidian/
+.claude/
+**/.claude/
