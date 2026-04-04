@@ -19,10 +19,10 @@ preprocess:
   missing_policy: drop
 mech_params:
   Mech_RP:
-    r: 100
+    r: 30
   Mech_RP_Pois:
-    r: 100
+    r: 30
     q: 0.8
   Blocki12_JL:
-    r: 100
-output_root: data/outputs/runs
+    r: 30
+output_root: data/outputs/runs/bike_sharing

@@ -37,6 +37,9 @@ def write_summary(
         if seed_batch is None:
             seed_batch = r.get("provenance", {}).get("seed_batch")
 
+    output_path = Path(output_path)
+    row_level_results_path = output_path.parent / "demo_results.jsonl"
+
     lines = [
         "# WF-001 Demo Run Summary",
         "",
@@ -75,13 +78,13 @@ def write_summary(
         "",
         "## Outputs",
         "",
-        "- Row-level results: `data/outputs/runs/demo_results.jsonl`",
+        f"- Row-level results: `{row_level_results_path}`",
         f"- Summary table: `{table_name}`",
         f"- OLS figure: `{ols_figure_name}`",
         f"- Covariance figure: `{covariance_figure_name}`",
         "",
     ])
 
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         f.write("\n".join(lines))

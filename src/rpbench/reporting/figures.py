@@ -12,6 +12,14 @@ import numpy as np
 import pandas as pd
 
 
+def _dataset_name(records: list[dict[str, Any]]) -> str:
+    for rec in records:
+        dataset = rec.get("dataset")
+        if dataset:
+            return str(dataset)
+    return "dataset"
+
+
 def _aggregate_metric(
     records: list[dict[str, Any]],
     metric_key: str,
@@ -48,6 +56,7 @@ def ols_plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) 
     agg, delta_val = _aggregate_metric(records, "test_mse", "downstream_metrics")
     if agg.empty:
         return
+    dataset = _dataset_name(records)
 
     # Find non-private baseline
     np_mse = None
@@ -71,7 +80,7 @@ def ols_plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) 
     ax.set_xlabel(r"$\varepsilon$")
     ax.set_ylabel("OLS Test MSE")
     delta_str = f"{delta_val:.2e}" if delta_val else "1/n^2"
-    ax.set_title(f"OLS Downstream Utility: AutoMPG (δ = {delta_str})")
+    ax.set_title(f"OLS Downstream Utility: {dataset} (δ = {delta_str})")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -87,6 +96,7 @@ def plot_eps_vs_covariance_error(records: list[dict[str, Any]], output_path: str
     agg, delta_val = _aggregate_metric(records, "rel_fro_xtx", "release_metrics")
     if agg.empty:
         return
+    dataset = _dataset_name(records)
 
     fig, ax = plt.subplots(figsize=(7, 5))
 
@@ -100,7 +110,7 @@ def plot_eps_vs_covariance_error(records: list[dict[str, Any]], output_path: str
     ax.set_xlabel(r"$\varepsilon$")
     ax.set_ylabel(r"Relative Frobenius Error of $X^\top X$")
     delta_str = f"{delta_val:.2e}" if delta_val else "1/n^2"
-    ax.set_title(f"Covariance Release Quality: AutoMPG (δ = {delta_str})")
+    ax.set_title(f"Covariance Release Quality: {dataset} (δ = {delta_str})")
     ax.legend()
     ax.grid(True, alpha=0.3)
 

@@ -98,6 +98,13 @@ def test_bike_sharing_redundant_registry():
     assert DATASET_REGISTRY["bike_sharing_redundant"].name == "bike_sharing_redundant"
 
 
+def test_bike_sharing_redundant_pois_registry():
+    from rpbench.runners.run_demo import DATASET_REGISTRY
+
+    assert "bike_sharing_redundant_pois" in DATASET_REGISTRY
+    assert DATASET_REGISTRY["bike_sharing_redundant_pois"].name == "bike_sharing_redundant_pois"
+
+
 def test_repeat_training_rows():
     import numpy as np
 
@@ -138,6 +145,57 @@ def test_repeat_training_rows_rejects_invalid_copies():
     )
     with pytest.raises(ValueError, match="copies_per_row"):
         repeat_training_rows(b, 0)
+
+
+def test_poisson_subsample_training_rows():
+    import numpy as np
+
+    from rpbench.datasets.base import DatasetBundle
+    from rpbench.datasets.bike_sharing_redundant import poisson_subsample_training_rows
+
+    b = DatasetBundle(
+        X_train=np.arange(12, dtype=np.float64).reshape(6, 2),
+        y_train=np.arange(6, dtype=np.float64),
+        X_test=np.zeros((1, 2)),
+        y_test=np.zeros(1),
+        meta={"dataset": "bike_sharing_redundant", "n_train": 6},
+    )
+    out = poisson_subsample_training_rows(b, q=0.5, seed=7)
+    assert out.X_train.shape[0] >= 1
+    assert out.X_train.shape[1] == 2
+    assert out.y_train.shape[0] == out.X_train.shape[0]
+    assert out.meta["dataset"] == "bike_sharing_redundant_pois"
+    assert out.meta["n_train_before_poisson"] == 6
+    assert out.meta["poisson_q"] == 0.5
+
+
+def test_run_demo_nonprivate_only():
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
+    from rpbench.runners.run_demo import run_demo
+
+    cfg = DemoConfig(
+        dataset="synthetic_redundant_regression",
+        mechanisms=[],
+        task="OLSFromRelease",
+        epsilon_grid=[],
+        delta_rule="1e-6",
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
+        split=SplitSpec(train_fraction=0.8, seed=42),
+        preprocess=PreprocessSpec(),
+        mech_params={},
+        output_root=tempfile.mkdtemp(),
+        dataset_params={
+            "feature_dim": 4,
+            "n_prototypes": 8,
+            "copies_per_prototype": 4,
+            "generation_seed": 123,
+            "poisson_diag_trials": 2,
+        },
+    )
+
+    records = run_demo(cfg)
+    assert len(records) == 1
+    assert records[0]["mechanism"] == "NonPrivate"
 
 
 def test_bike_sharing_redundant_adapter_patched_base():
