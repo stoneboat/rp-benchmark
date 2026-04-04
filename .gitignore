@@ -36,3 +36,5 @@ reports/examples/*.csv
 artifacts/**/.obsidian/
 .claude/
 **/.claude/
+
+.codex

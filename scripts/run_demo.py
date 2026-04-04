@@ -42,11 +42,8 @@ def main() -> None:
     ts = short_timestamp()
     out_dir = Path(cfg.output_root)
     out_path_ts = out_dir / f"demo_results_{ts}.jsonl"
-    out_path_latest = out_dir / "demo_results.jsonl"
     save_jsonl(records, out_path_ts)
-    save_jsonl(records, out_path_latest)
     print(f"\nSaved {len(records)} records to {out_path_ts}")
-    print(f"Updated latest pointer: {out_path_latest}")
 
 
 if __name__ == "__main__":

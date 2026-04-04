@@ -91,6 +91,99 @@ def test_synthetic_redundant_regression_registry():
     assert DATASET_REGISTRY["synthetic_redundant_regression"].name == "synthetic_redundant_regression"
 
 
+def test_bike_sharing_redundant_registry():
+    from rpbench.runners.run_demo import DATASET_REGISTRY
+
+    assert "bike_sharing_redundant" in DATASET_REGISTRY
+    assert DATASET_REGISTRY["bike_sharing_redundant"].name == "bike_sharing_redundant"
+
+
+def test_repeat_training_rows():
+    import numpy as np
+
+    from rpbench.datasets.base import DatasetBundle
+    from rpbench.datasets.bike_sharing_redundant import repeat_training_rows
+
+    b = DatasetBundle(
+        X_train=np.array([[1.0, 2.0], [3.0, 4.0]]),
+        y_train=np.array([10.0, 20.0]),
+        X_test=np.array([[0.0, 0.0]]),
+        y_test=np.array([0.0]),
+        meta={"n_train": 2, "d": 2, "dataset": "bike_sharing"},
+    )
+    out = repeat_training_rows(b, 3)
+    assert out.X_train.shape == (6, 2)
+    np.testing.assert_array_equal(out.y_train, [10.0, 10.0, 10.0, 20.0, 20.0, 20.0])
+    assert out.X_test.shape == b.X_test.shape
+    assert out.y_test.shape == b.y_test.shape
+    assert out.meta["n_train_unique"] == 2
+    assert out.meta["n_train"] == 6
+    assert out.meta["redundant_copies_per_row"] == 3
+    assert out.meta["dataset"] == "bike_sharing_redundant"
+
+
+def test_repeat_training_rows_rejects_invalid_copies():
+    import numpy as np
+    import pytest
+
+    from rpbench.datasets.base import DatasetBundle
+    from rpbench.datasets.bike_sharing_redundant import repeat_training_rows
+
+    b = DatasetBundle(
+        X_train=np.zeros((1, 1)),
+        y_train=np.zeros(1),
+        X_test=np.zeros((1, 1)),
+        y_test=np.zeros(1),
+        meta={},
+    )
+    with pytest.raises(ValueError, match="copies_per_row"):
+        repeat_training_rows(b, 0)
+
+
+def test_bike_sharing_redundant_adapter_patched_base():
+    """Adapter repeats rows after base load (no OpenML fetch)."""
+    import numpy as np
+    from unittest.mock import patch
+
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.base import DatasetBundle
+    from rpbench.datasets.bike_sharing import BikeSharingAdapter
+    from rpbench.datasets.bike_sharing_redundant import BikeSharingRedundantAdapter
+
+    tiny = DatasetBundle(
+        X_train=np.arange(6, dtype=np.float64).reshape(2, 3),
+        y_train=np.array([1.0, 2.0]),
+        X_test=np.zeros((1, 3)),
+        y_test=np.array([0.0]),
+        meta={
+            "dataset": "bike_sharing",
+            "n_train": 2,
+            "n_test": 1,
+            "d": 3,
+            "C_X": 1.0,
+            "C_Y": 1.0,
+            "y_mean": 0.0,
+            "y_std": 1.0,
+            "feature_columns": ["a", "b", "c"],
+            "target_column": "cnt",
+            "openml": {},
+        },
+    )
+
+    with patch.object(BikeSharingAdapter, "load", lambda self, s, p: tiny):
+        ad = BikeSharingRedundantAdapter(copies_per_row=4, cache_dir="unused")
+        got = ad.load(
+            SplitSpec(train_fraction=0.8, seed=1),
+            PreprocessSpec(),
+        )
+
+    assert got.X_train.shape == (8, 3)
+    assert got.y_train.shape == (8,)
+    assert got.meta["n_train_unique"] == 2
+    assert got.meta["n_train"] == 8
+    assert got.meta["dataset"] == "bike_sharing_redundant"
+
+
 def test_synthetic_redundant_regression_deterministic():
     from rpbench.config import PreprocessSpec, SplitSpec
     from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
@@ -113,8 +206,36 @@ def test_synthetic_redundant_regression_deterministic():
     assert "geometry_diagnostics" in b1.meta
     assert "poisson_subsampling_diagnostics" in b1.meta
     assert "blocki12_jl_diagnostics" in b1.meta
+    assert "prototype_retention_diagnostics" in b1.meta
     assert b1.meta["synthetic_params"]["generation_seed_from_config"] == 2026
     assert b1.meta["synthetic_params"]["generation_seed"] == 2026
+    poisson_diag = b1.meta["poisson_subsampling_diagnostics"]["0.2"]
+    assert "relative_opnorm_p90" in poisson_diag
+    assert "whitened_relative_opnorm_p90" in poisson_diag
+
+
+def test_synthetic_redundant_regression_supports_explicit_spectrum_and_weak_beta():
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
+
+    adapter = SyntheticRedundantRegressionAdapter(
+        feature_dim=6,
+        n_prototypes=15,
+        copies_per_prototype=20,
+        cluster_noise=0.03,
+        generation_seed=2027,
+        prototype_eigenvalues=[1.5, 1.2, 0.9, 0.6, 0.4, 0.25],
+        beta_mode="weak",
+        beta_strength=1.4,
+        poisson_diag_qs=[0.3],
+        poisson_diag_trials=3,
+    )
+    bundle = adapter.load(SplitSpec(train_fraction=0.8, seed=7), PreprocessSpec())
+    sp = bundle.meta["synthetic_params"]
+    assert sp["prototype_eigenvalues"] == [1.5, 1.2, 0.9, 0.6, 0.4, 0.25]
+    assert sp["beta_mode"] == "weak"
+    assert 0.0 <= sp["beta_weak_half_mass"] <= 1.0
+    assert "prototype_retention_per_trial" in bundle.meta["poisson_subsampling_diagnostics"]["0.3"]
 
 
 def test_synthetic_redundant_regression_random_generation_seed_when_omitted():

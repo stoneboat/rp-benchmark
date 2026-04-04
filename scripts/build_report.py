@@ -58,19 +58,5 @@ def main() -> None:
     write_summary(records, md_path, ols_fig_path.name, covariance_fig_path.name, csv_path.name)
     print(f"Summary: {md_path}")
 
-    # Also refresh stable "latest" names for convenience.
-    build_summary_table(records, out / "summary_table.csv")
-    ols_plot_eps_vs_mse(records, out / "ols_plot_eps_vs_mse.png")
-    plot_eps_vs_covariance_error(records, out / "covariance_plot_eps_vs_error.png")
-    write_summary(
-        records,
-        out / "demo_summary.md",
-        "ols_plot_eps_vs_mse.png",
-        "covariance_plot_eps_vs_error.png",
-        "summary_table.csv",
-    )
-    print("Updated latest pointers: summary_table.csv, ols_plot_eps_vs_mse.png, covariance_plot_eps_vs_error.png, demo_summary.md")
-
-
 if __name__ == "__main__":
     main()

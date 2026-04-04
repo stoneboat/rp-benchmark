@@ -1,29 +1,32 @@
-# Redundant-cluster synthetic regression: Poisson thinning q=0.2/0.8 in dataset meta;
-# demo runs include Blocki12_JL alongside RP baselines (r aligned at 50).
+# Likely-positive regime: high redundancy, small cluster noise, weaker-direction signal,
+# and a smaller RP sketch so the Poisson wrapper has room to reduce inner calibration.
 dataset: synthetic_redundant_regression
 dataset_params:
   feature_dim: 12
-  n_prototypes: 50
+  n_prototypes: 60
   copies_per_prototype: 100
-  cluster_noise: 0.02
-  label_noise: 0.02
+  cluster_noise: 0.025
+  label_noise: 0.05
   generation_seed: 12345
-  prototype_spectrum_decay: 0.85
-  prototype_spectrum_scale: 1.0
-  poisson_diag_qs: [0.2, 0.8]
+  prototype_eigenvalues: [1.60, 1.30, 1.05, 0.86, 0.70, 0.57, 0.46, 0.37, 0.30, 0.24, 0.19, 0.15]
+  beta_mode: mid_weak
+  beta_strength: 1.5
+  beta_midpoint: 0.72
+  beta_bandwidth: 0.16
+  poisson_diag_qs: [0.2, 0.3, 0.5, 0.8, 0.9]
   poisson_diag_trials: 25
   poisson_diag_seed: 4242
-  blocki12_jl_diag_rs: [50]
+  blocki12_jl_diag_rs: [20, 30]
   blocki12_jl_diag_trials: 25
   blocki12_jl_diag_seed: 4243
 mechanisms: [Mech_RP, Mech_RP_Pois]
 task: OLSFromRelease
-epsilon_grid: [0.1, 0.2, 0.5, 1.0]
+epsilon_grid: [0.1, 0.25, 0.5, 1.0]
 delta_rule: 1e-6
 seed_batch:
   mode: fixed
   base_seed: 0
-  count: 10
+  count: 8
 split:
   train_fraction: 0.8
   seed: 42
@@ -36,10 +39,8 @@ preprocess:
   missing_policy: drop
 mech_params:
   Mech_RP:
-    r: 30
+    r: 20
   Mech_RP_Pois:
-    r: 30
+    r: 20
     q: 0.3
-  Blocki12_JL:
-    r: 30
-output_root: data/outputs/runs
+output_root: data/outputs/runs/synthetic_positive_q03
