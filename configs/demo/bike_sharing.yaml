@@ -1,5 +1,5 @@
 dataset: bike_sharing
-mechanisms: [Mech_RP, Mech_RP_Pois, Blocki12_JL]
+mechanisms: [Mech_RP, Mech_RP_Pois]
 task: OLSFromRelease
 epsilon_grid: [0.5, 1.0, 2.0, 4.0]
 delta_rule: 1e-6
