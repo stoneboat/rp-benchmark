@@ -1,0 +1,26 @@
+dataset: flight
+mechanisms: [Mech_RP, Mech_RP_Pois]
+task: OLSFromRelease
+epsilon_grid: [0.5, 1.0, 2.0, 4.0]
+delta_rule: 1e-6
+seed_batch:
+  mode: fixed
+  base_seed: 0
+  count: 5
+split:
+  train_fraction: 0.8
+  seed: 42
+preprocess:
+  scale_x: true
+  clip_x: true
+  clip_x_bound: 3.0
+  clip_y: true
+  clip_y_bound: 3.0
+  missing_policy: drop
+mech_params:
+  Mech_RP:
+    r: 50
+  Mech_RP_Pois:
+    r: 50
+    q: 0.5
+output_root: data/outputs/runs/flight

@@ -349,6 +349,59 @@ def test_synthetic_redundant_regression_mini_benchmark():
         assert r["downstream_metrics"]["test_mse"] >= 0.0
 
 
+def test_flight_registry():
+    from rpbench.runners.run_demo import DATASET_REGISTRY
+
+    assert "flight" in DATASET_REGISTRY
+    assert DATASET_REGISTRY["flight"].name == "flight"
+
+
+def test_flight_adapter_load():
+    """FlightAdapter loads, preprocesses, and returns a bundle with d=1 and ~327k rows."""
+    from unittest.mock import patch
+    from pathlib import Path
+    import tempfile
+    import numpy as np
+    import pandas as pd
+
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.flight import FlightAdapter
+
+    # Build a tiny synthetic CSV that mimics the nycflights13 structure.
+    rng = np.random.default_rng(0)
+    n = 200
+    dep = rng.normal(12.0, 40.0, size=n)
+    arr = dep * 0.9 + rng.normal(0, 5.0, size=n)
+    tiny_df = pd.DataFrame({"dep_delay": dep, "arr_delay": arr})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        csv_path = Path(tmpdir) / "nycflights13_flights.csv"
+        tiny_df.to_csv(csv_path)  # write with row-index column (mimics Rdatasets)
+
+        adapter = FlightAdapter(cache_dir=tmpdir)
+        # Patch _fetch_csv to return our pre-written file without a network call.
+        with patch.object(adapter, "_fetch_csv", return_value=csv_path):
+            bundle = adapter.load(
+                SplitSpec(train_fraction=0.8, seed=7),
+                PreprocessSpec(scale_x=True, clip_x=True, clip_x_bound=3.0,
+                               clip_y=True, clip_y_bound=3.0),
+            )
+
+    assert bundle.X_train.shape[1] == 1, "expected d=1 (dep_delay only)"
+    assert bundle.X_train.shape[0] + bundle.X_test.shape[0] == n
+    assert bundle.meta["d"] == 1
+    assert bundle.meta["feature_columns"] == ["dep_delay"]
+    assert bundle.meta["target_column"] == "arr_delay"
+    assert bundle.meta["C_X"] == 3.0
+    assert bundle.meta["C_Y"] == 3.0
+
+    pub = adapter.public_meta(bundle)
+    assert pub["d"] == 1
+    assert pub["d_aug"] == 2
+    assert pub["n"] == bundle.X_train.shape[0]
+    assert pub["l"] > 0
+
+
 def test_report_builder():
     """Test that the report builder can consume saved outputs."""
     import tempfile

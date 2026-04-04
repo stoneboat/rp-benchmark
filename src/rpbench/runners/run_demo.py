@@ -11,7 +11,7 @@ import numpy as np
 from rpbench.config import DemoConfig, PrivacySpec
 from rpbench.datasets.autompg import AutoMPGAdapter
 from rpbench.datasets.bike_sharing import BikeSharingAdapter
-
+from rpbench.datasets.flight import FlightAdapter
 from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
 from rpbench.datasets.base import DatasetBundle
 from rpbench.mechanisms.base import Mechanism
@@ -32,6 +32,7 @@ MECHANISM_REGISTRY: dict[str, type] = {
 DATASET_REGISTRY: dict[str, type] = {
     "autompg": AutoMPGAdapter,
     "bike_sharing": BikeSharingAdapter,
+    "flight": FlightAdapter,
     "synthetic_redundant_regression": SyntheticRedundantRegressionAdapter,
 }
 
