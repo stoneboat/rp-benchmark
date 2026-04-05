@@ -1,0 +1,40 @@
+# Demo config comparing baseline Mech_RP against the PTR-based wrapper Mech_RP_PTR.
+#
+# PTR (Propose-Test-Release) improves utility on well-conditioned datasets by
+# adaptively lowering the ridge level when lambda_min(D^T D) is large.
+# Ground truth: NDIS paper Figure 4 / Theorem 6 / Proposition 5.
+#
+# delta_rule: 1e-6 → delta = 1e-6 for all runs.
+# The three PTR delta parameters MUST sum to exactly delta:
+#   delta_r + delta_t + delta_ptr == 1e-6
+#   5e-7    + 3e-7    + 2e-7      == 1e-6  ✓
+
+dataset: autompg
+mechanisms: [Mech_RP, Mech_RP_PTR]
+task: OLSFromRelease
+epsilon_grid: [0.5, 1.0, 2.0, 4.0]
+delta_rule: 1e-6
+seed_batch:
+  mode: fixed
+  base_seed: 0
+  count: 5
+split:
+  train_fraction: 0.8
+  seed: 42
+preprocess:
+  scale_x: true
+  clip_x: true
+  clip_x_bound: 3.0
+  clip_y: true
+  clip_y_bound: 1.0
+  missing_policy: drop
+mech_params:
+  Mech_RP:
+    r: 50
+  Mech_RP_PTR:
+    r: 50
+    tau: 0.5       # eigenvalue noise scale τ > 0; smaller τ → tighter lower bound
+    delta_r: 5e-7  # RP release budget  (δ_R)
+    delta_t: 3e-7  # eigenvalue test budget  (δ_T)
+    delta_ptr: 2e-7  # PTR failure probability  (δ_ptr)
+output_root: data/outputs/runs/autompg_ptr

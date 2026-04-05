@@ -4,7 +4,7 @@ RP-family differential privacy benchmark — WF-001 Stage 1.
 
 Compares RP-family mechanisms on regression datasets using OLS as the
 downstream task. The repo currently includes public-data demos
-(`autompg`, `bike_sharing`, `bike_sharing_redundant`) and a synthetic
+(`autompg`, `bike_sharing`, `flight`) and a synthetic
 redundant-regression demo (`synthetic_redundant_regression`).
 
 ## Quick start (local)
@@ -24,10 +24,7 @@ python scripts/run_demo.py --config configs/demo/autompg.yaml
 # 3b. Run Bike Sharing benchmark
 python scripts/run_demo.py --config configs/demo/bike_sharing.yaml
 
-# 3c. Run Bike Sharing redundant-row benchmark
-python scripts/run_demo.py --config configs/demo/bike_sharing_redundant.yaml
-
-# 3d. Run synthetic redundant-regression benchmark
+# 3c. Run synthetic redundant-regression benchmark
 python scripts/run_demo.py --config configs/demo/synthetic_redundant_regression.yaml
 
 # 4. Build the report for a specific run directory
@@ -59,10 +56,7 @@ python scripts/run_demo.py --config configs/demo/autompg.yaml
 # 3b. Run Bike Sharing benchmark
 python scripts/run_demo.py --config configs/demo/bike_sharing.yaml
 
-# 3c. Run Bike Sharing redundant-row benchmark
-python scripts/run_demo.py --config configs/demo/bike_sharing_redundant.yaml
-
-# 3d. Run synthetic redundant-regression benchmark
+# 3c. Run synthetic redundant-regression benchmark
 python scripts/run_demo.py --config configs/demo/synthetic_redundant_regression.yaml
 
 # 4. Build the report for a specific run directory
@@ -96,8 +90,7 @@ the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom
    - Fits OLS from the release.
    - Evaluates test MSE and relative Frobenius error.
 3. Saves row-level JSONL to the config's `output_root`, e.g.
-   `data/outputs/runs/` for `autompg` and `bike_sharing`,
-   `data/outputs/runs/bike_sharing_redundant/` for `bike_sharing_redundant`,
+   `data/outputs/runs/` for `autompg`, `bike_sharing`, and `flight`,
    and `data/outputs/runs/synthetic_positive_q03/` for
    `synthetic_redundant_regression`.
 4. Within that directory, it writes a timestamped JSONL file
@@ -112,22 +105,25 @@ the kernel named **Python (rpbench)** in Jupyter and run the cells top-to-bottom
 See configs under `configs/demo/`:
 
 - `autompg.yaml`
+- `autompg_ptr.yaml`
 - `bike_sharing.yaml`
-- `bike_sharing_redundant.yaml`
+- `flight.yaml`
 - `synthetic_redundant_regression.yaml`
 
 Current demo outputs:
 
 - `configs/demo/autompg.yaml` writes to `data/outputs/runs`
+- `configs/demo/autompg_ptr.yaml` writes to `data/outputs/runs/autompg_ptr`
 - `configs/demo/bike_sharing.yaml` writes to `data/outputs/runs`
-- `configs/demo/bike_sharing_redundant.yaml` writes to `data/outputs/runs/bike_sharing_redundant`
+- `configs/demo/flight.yaml` writes to `data/outputs/runs/flight`
 - `configs/demo/synthetic_redundant_regression.yaml` writes to `data/outputs/runs/synthetic_positive_q03`
 
 Notable config differences:
 
 - `autompg.yaml`: mechanisms `Mech_RP`, `Mech_RP_Pois`, `Blocki12_JL`; `r=50`; `q=0.5`; 5 seeds
+- `autompg_ptr.yaml`: mechanisms `Mech_RP`, `Mech_RP_Pois`, `Mech_RP_PTR`; `r=50`; `q=0.5`; 5 seeds
 - `bike_sharing.yaml`: mechanisms `Mech_RP`, `Mech_RP_Pois`, `Blocki12_JL`; `r=100`; `q=0.8`; 5 seeds
-- `bike_sharing_redundant.yaml`: dataset `bike_sharing_redundant`; `copies_per_row=15`; mechanisms `Mech_RP`, `Mech_RP_Pois`; `r=100`; `q=0.8`; 5 seeds
+- `flight.yaml`: mechanisms `Mech_RP`, `Mech_RP_Pois`, `Blocki12_JL`; `r=100`; `q=0.8`; 5 seeds
 - `synthetic_redundant_regression.yaml`: dataset `synthetic_redundant_regression`; high-redundancy synthetic regime; mechanisms `Mech_RP`, `Mech_RP_Pois`; `r=20`; `q=0.3`; epsilon grid `[0.1, 0.25, 0.5, 1.0]`; 8 seeds
 
 All current demo configs use:
@@ -152,10 +148,6 @@ Examples:
 python scripts/build_report.py \
   --input-root data/outputs/runs \
   --output-root reports/autompg
-
-python scripts/build_report.py \
-  --input-root data/outputs/runs/bike_sharing_redundant \
-  --output-root reports/bike_sharing_redundant
 
 python scripts/build_report.py \
   --input-root data/outputs/runs/synthetic_positive_q03 \

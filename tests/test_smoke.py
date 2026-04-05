@@ -84,89 +84,49 @@ def test_mini_run_with_pois_wrapper():
     assert any(rec["mechanism"] == "Mech_RP_Pois" for rec in records)
 
 
+def test_mini_run_with_ptr_wrapper():
+    """Run the PTR-based RP wrapper end-to-end."""
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
+    from rpbench.runners.run_demo import run_demo
+
+    # delta_rule 1e-6 → delta = 1e-6; splits must sum exactly to 1e-6.
+    cfg = DemoConfig(
+        dataset="autompg",
+        mechanisms=["Mech_RP_PTR"],
+        task="OLSFromRelease",
+        epsilon_grid=[2.0],
+        delta_rule="1e-6",
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
+        split=SplitSpec(train_fraction=0.8, seed=42),
+        preprocess=PreprocessSpec(),
+        mech_params={"Mech_RP_PTR": {
+            "r": 24,
+            "tau": 0.5,
+            "delta_r": 5e-7,
+            "delta_t": 3e-7,
+            "delta_ptr": 2e-7,
+        }},
+        output_root=tempfile.mkdtemp(),
+    )
+
+    records = run_demo(cfg)
+    assert len(records) >= 2
+    priv = [r for r in records if r["mechanism"] == "Mech_RP_PTR"]
+    assert priv, "no Mech_RP_PTR records found"
+    rec = priv[0]
+    assert "downstream_metrics" in rec
+    assert "release_metrics" in rec
+    diag = rec["diagnostics"]
+    assert "lambda_ptr" in diag
+    assert "epsilon_T" in diag
+    assert diag["lambda_ptr"] >= 0.0
+
+
 def test_synthetic_redundant_regression_registry():
     from rpbench.runners.run_demo import DATASET_REGISTRY
 
     assert "synthetic_redundant_regression" in DATASET_REGISTRY
     assert DATASET_REGISTRY["synthetic_redundant_regression"].name == "synthetic_redundant_regression"
-
-
-def test_bike_sharing_redundant_registry():
-    from rpbench.runners.run_demo import DATASET_REGISTRY
-
-    assert "bike_sharing_redundant" in DATASET_REGISTRY
-    assert DATASET_REGISTRY["bike_sharing_redundant"].name == "bike_sharing_redundant"
-
-
-def test_bike_sharing_redundant_pois_registry():
-    from rpbench.runners.run_demo import DATASET_REGISTRY
-
-    assert "bike_sharing_redundant_pois" in DATASET_REGISTRY
-    assert DATASET_REGISTRY["bike_sharing_redundant_pois"].name == "bike_sharing_redundant_pois"
-
-
-def test_repeat_training_rows():
-    import numpy as np
-
-    from rpbench.datasets.base import DatasetBundle
-    from rpbench.datasets.bike_sharing_redundant import repeat_training_rows
-
-    b = DatasetBundle(
-        X_train=np.array([[1.0, 2.0], [3.0, 4.0]]),
-        y_train=np.array([10.0, 20.0]),
-        X_test=np.array([[0.0, 0.0]]),
-        y_test=np.array([0.0]),
-        meta={"n_train": 2, "d": 2, "dataset": "bike_sharing"},
-    )
-    out = repeat_training_rows(b, 3)
-    assert out.X_train.shape == (6, 2)
-    np.testing.assert_array_equal(out.y_train, [10.0, 10.0, 10.0, 20.0, 20.0, 20.0])
-    assert out.X_test.shape == b.X_test.shape
-    assert out.y_test.shape == b.y_test.shape
-    assert out.meta["n_train_unique"] == 2
-    assert out.meta["n_train"] == 6
-    assert out.meta["redundant_copies_per_row"] == 3
-    assert out.meta["dataset"] == "bike_sharing_redundant"
-
-
-def test_repeat_training_rows_rejects_invalid_copies():
-    import numpy as np
-    import pytest
-
-    from rpbench.datasets.base import DatasetBundle
-    from rpbench.datasets.bike_sharing_redundant import repeat_training_rows
-
-    b = DatasetBundle(
-        X_train=np.zeros((1, 1)),
-        y_train=np.zeros(1),
-        X_test=np.zeros((1, 1)),
-        y_test=np.zeros(1),
-        meta={},
-    )
-    with pytest.raises(ValueError, match="copies_per_row"):
-        repeat_training_rows(b, 0)
-
-
-def test_poisson_subsample_training_rows():
-    import numpy as np
-
-    from rpbench.datasets.base import DatasetBundle
-    from rpbench.datasets.bike_sharing_redundant import poisson_subsample_training_rows
-
-    b = DatasetBundle(
-        X_train=np.arange(12, dtype=np.float64).reshape(6, 2),
-        y_train=np.arange(6, dtype=np.float64),
-        X_test=np.zeros((1, 2)),
-        y_test=np.zeros(1),
-        meta={"dataset": "bike_sharing_redundant", "n_train": 6},
-    )
-    out = poisson_subsample_training_rows(b, q=0.5, seed=7)
-    assert out.X_train.shape[0] >= 1
-    assert out.X_train.shape[1] == 2
-    assert out.y_train.shape[0] == out.X_train.shape[0]
-    assert out.meta["dataset"] == "bike_sharing_redundant_pois"
-    assert out.meta["n_train_before_poisson"] == 6
-    assert out.meta["poisson_q"] == 0.5
 
 
 def test_run_demo_nonprivate_only():
@@ -196,50 +156,6 @@ def test_run_demo_nonprivate_only():
     records = run_demo(cfg)
     assert len(records) == 1
     assert records[0]["mechanism"] == "NonPrivate"
-
-
-def test_bike_sharing_redundant_adapter_patched_base():
-    """Adapter repeats rows after base load (no OpenML fetch)."""
-    import numpy as np
-    from unittest.mock import patch
-
-    from rpbench.config import PreprocessSpec, SplitSpec
-    from rpbench.datasets.base import DatasetBundle
-    from rpbench.datasets.bike_sharing import BikeSharingAdapter
-    from rpbench.datasets.bike_sharing_redundant import BikeSharingRedundantAdapter
-
-    tiny = DatasetBundle(
-        X_train=np.arange(6, dtype=np.float64).reshape(2, 3),
-        y_train=np.array([1.0, 2.0]),
-        X_test=np.zeros((1, 3)),
-        y_test=np.array([0.0]),
-        meta={
-            "dataset": "bike_sharing",
-            "n_train": 2,
-            "n_test": 1,
-            "d": 3,
-            "C_X": 1.0,
-            "C_Y": 1.0,
-            "y_mean": 0.0,
-            "y_std": 1.0,
-            "feature_columns": ["a", "b", "c"],
-            "target_column": "cnt",
-            "openml": {},
-        },
-    )
-
-    with patch.object(BikeSharingAdapter, "load", lambda self, s, p: tiny):
-        ad = BikeSharingRedundantAdapter(copies_per_row=4, cache_dir="unused")
-        got = ad.load(
-            SplitSpec(train_fraction=0.8, seed=1),
-            PreprocessSpec(),
-        )
-
-    assert got.X_train.shape == (8, 3)
-    assert got.y_train.shape == (8,)
-    assert got.meta["n_train_unique"] == 2
-    assert got.meta["n_train"] == 8
-    assert got.meta["dataset"] == "bike_sharing_redundant"
 
 
 def test_synthetic_redundant_regression_deterministic():

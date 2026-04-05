@@ -15,7 +15,7 @@ from rpbench.datasets.flight import FlightAdapter
 from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
 from rpbench.datasets.base import DatasetBundle
 from rpbench.mechanisms.base import Mechanism
-from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois
+from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.metrics.release import relative_frobenius_xtx
 from rpbench.tasks.ols_from_release import OLSFromRelease
@@ -26,6 +26,7 @@ from rpbench.utils.linear_algebra import augmented_data, gram_matrix
 MECHANISM_REGISTRY: dict[str, type] = {
     "Mech_RP": MechRP,
     "Mech_RP_Pois": MechRPPois,
+    "Mech_RP_PTR": MechRPPTR,
     "Blocki12_JL": Blocki12JL,
 }
 

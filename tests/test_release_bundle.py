@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from rpbench.config import PrivacySpec
-from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois
+from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.mechanisms.base import ReleaseBundle
 from rpbench.tasks.ols_from_release import OLSFromRelease
@@ -125,6 +125,61 @@ def test_ols_from_release_uses_rp_sketch_decoder():
     beta = task.fit_from_release(rb, train_meta={})
 
     np.testing.assert_allclose(beta, np.array([5.0, 4.0]))
+
+
+def test_mech_rp_ptr_release():
+    A, meta = _make_data()
+    delta = 1e-4
+    mech = MechRPPTR(r=24, tau=0.5, delta_r=5e-5, delta_t=3e-5, delta_ptr=2e-5)
+    ps = PrivacySpec(epsilon=2.0, delta=delta)
+    mech.calibrate(ps, meta)
+    rb = mech.release(A, seed=42)
+
+    assert isinstance(rb, ReleaseBundle)
+    assert rb.mechanism_name == "Mech_RP_PTR"
+    assert rb.release_kind == "gram_blocks"
+    assert rb.xtx_hat is not None
+    assert rb.xty_hat is not None
+    assert rb.xtx_hat.shape == (meta["d"], meta["d"])
+    assert rb.xty_hat.shape == (meta["d"],)
+    assert rb.runtime_sec >= 0
+    assert rb.sketch_matrix is not None
+    assert rb.sketch_matrix.shape == (meta["d_aug"], 24)
+    # Required diagnostics fields
+    for key in ("epsilon_T", "epsilon_R", "delta_R", "delta_T", "delta_ptr",
+                "tau", "p_star", "p_star_ptr", "p_star_rp", "lambda_min_raw",
+                "alpha", "eta", "lambda_lb", "lambda_ptr", "lambda_rp",
+                "prop5_threshold", "prop5_condition_met", "lambda_ptr_lt_lambda_rp"):
+        assert key in rb.diagnostics, f"missing diagnostics key: {key}"
+    # Backward-compatible alias and baseline-vs-PTR distinction.
+    assert rb.diagnostics["p_star"] == rb.diagnostics["p_star_ptr"]
+    assert rb.diagnostics["p_star_rp"] >= rb.diagnostics["p_star_ptr"]
+    # lambda_ptr >= 0; under the corrected baseline comparison it may be either
+    # smaller or larger than the true full-budget baseline ridge.
+    assert rb.diagnostics["lambda_ptr"] >= 0.0
+    # Proposition 5 diagnostic now reflects the stated raw-eigenvalue inequality.
+    lhs = rb.diagnostics["lambda_min_raw"]
+    rhs = rb.diagnostics["prop5_threshold"]
+    assert rb.diagnostics["prop5_condition_met"] == bool(lhs > rhs)
+    assert rb.diagnostics["lambda_ptr_lt_lambda_rp"] == bool(
+        rb.diagnostics["lambda_ptr"] < rb.diagnostics["lambda_rp"]
+    )
+
+
+def test_mech_rp_ptr_deterministic():
+    A, meta = _make_data()
+    delta = 1e-4
+    mech1 = MechRPPTR(r=24, tau=0.5, delta_r=5e-5, delta_t=3e-5, delta_ptr=2e-5)
+    mech2 = MechRPPTR(r=24, tau=0.5, delta_r=5e-5, delta_t=3e-5, delta_ptr=2e-5)
+    ps = PrivacySpec(epsilon=2.0, delta=delta)
+    mech1.calibrate(ps, meta)
+    mech2.calibrate(ps, meta)
+    rb1 = mech1.release(A, seed=77)
+    rb2 = mech2.release(A, seed=77)
+    np.testing.assert_array_equal(rb1.xtx_hat, rb2.xtx_hat)
+    np.testing.assert_array_equal(rb1.xty_hat, rb2.xty_hat)
+    assert rb1.diagnostics["eta"] == rb2.diagnostics["eta"]
+    assert rb1.diagnostics["lambda_ptr"] == rb2.diagnostics["lambda_ptr"]
 
 
 def test_autompg_public_clipping_bounds_are_enforced():
