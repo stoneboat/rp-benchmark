@@ -1,5 +1,5 @@
 dataset: bike_sharing
-mechanisms: [Mech_RP, Mech_RP_Pois]
+mechanisms: [Mech_RP, Mech_RP_Pois, Mech_RP_PTR]
 task: OLSFromRelease
 epsilon_grid: [0.5, 1.0, 2.0, 4.0]
 delta_rule: 1e-6
@@ -25,4 +25,10 @@ mech_params:
     q: 0.8
   Blocki12_JL:
     r: 30
+  Mech_RP_PTR:
+    r: 50
+    tau: 0.5       # eigenvalue noise scale τ > 0; smaller τ → tighter lower bound
+    delta_r: 5e-7  # RP release budget  (δ_R)
+    delta_t: 3e-7  # eigenvalue test budget  (δ_T)
+    delta_ptr: 2e-7  # PTR failure probability  (δ_ptr)
 output_root: data/outputs/runs/bike_sharing

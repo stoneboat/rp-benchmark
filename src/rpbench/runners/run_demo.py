@@ -52,14 +52,9 @@ def _build_mechanism(name: str, params: dict[str, Any]) -> Mechanism:
     return cls(**params)
 
 
-def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
-    """Execute the full demo benchmark and return row-level records."""
+def run_demo_from_bundle(cfg: DemoConfig, bundle: DatasetBundle, pub_meta: dict[str, Any]) -> list[dict[str, Any]]:
+    """Execute the full demo benchmark using a preloaded dataset bundle."""
 
-    # Load dataset
-    adapter_cls = DATASET_REGISTRY[cfg.dataset]
-    adapter = adapter_cls(**_adapter_init_kwargs(adapter_cls, cfg.dataset_params))
-    bundle = adapter.load(cfg.split, cfg.preprocess)
-    pub_meta = adapter.public_meta(bundle)
     n_train = pub_meta["n"]
     delta = cfg.compute_delta(n_train)
     base_seed, trial_seeds = cfg.resolve_trial_seeds()
@@ -149,3 +144,13 @@ def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
                 })
 
     return records
+
+
+def run_demo(cfg: DemoConfig) -> list[dict[str, Any]]:
+    """Execute the full demo benchmark and return row-level records."""
+
+    adapter_cls = DATASET_REGISTRY[cfg.dataset]
+    adapter = adapter_cls(**_adapter_init_kwargs(adapter_cls, cfg.dataset_params))
+    bundle = adapter.load(cfg.split, cfg.preprocess)
+    pub_meta = adapter.public_meta(bundle)
+    return run_demo_from_bundle(cfg, bundle, pub_meta)

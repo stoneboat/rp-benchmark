@@ -42,6 +42,21 @@ def gram_spectrum_stats(X: np.ndarray) -> dict[str, float]:
     }
 
 
+def clipping_fraction_rows(X: np.ndarray, bound: float) -> float:
+    """Fraction of rows whose L2 norm exceeds ``bound``."""
+    if X.size == 0:
+        return 0.0
+    norms = np.linalg.norm(X, axis=1)
+    return float(np.mean(norms > bound))
+
+
+def clipping_fraction_values(y: np.ndarray, bound: float) -> float:
+    """Fraction of values whose absolute value exceeds ``bound``."""
+    if y.size == 0:
+        return 0.0
+    return float(np.mean(np.abs(y) > bound))
+
+
 def _summarize_counts(counts: np.ndarray) -> dict[str, float]:
     arr = np.asarray(counts, dtype=float)
     if arr.size == 0:
@@ -383,21 +398,34 @@ class SyntheticRedundantRegressionAdapter(DatasetAdapter):
             y_train = (y_train - y_mean) / y_std
             y_test = (y_test - y_mean) / y_std
 
+        x_train_pre_clip = x_train.copy()
+        x_test_pre_clip = x_test.copy()
+        y_train_pre_clip = y_train.copy()
+        y_test_pre_clip = y_test.copy()
+
         if preprocess_spec.clip_x:
             c_x = float(preprocess_spec.clip_x_bound)
+            x_clip_fraction_train = clipping_fraction_rows(x_train_pre_clip, c_x)
+            x_clip_fraction_test = clipping_fraction_rows(x_test_pre_clip, c_x)
             x_train = self._clip_rows_to_l2_bound(x_train, c_x)
             x_test = self._clip_rows_to_l2_bound(x_test, c_x)
         else:
             c_x = float(np.max(np.linalg.norm(x_train, axis=1)))
+            x_clip_fraction_train = 0.0
+            x_clip_fraction_test = 0.0
 
         if preprocess_spec.clip_y:
             c_y = float(preprocess_spec.clip_y_bound)
             if c_y <= 0:
                 raise ValueError("clip_y_bound must be > 0 when clip_y is enabled")
+            y_clip_fraction_train = clipping_fraction_values(y_train_pre_clip, c_y)
+            y_clip_fraction_test = clipping_fraction_values(y_test_pre_clip, c_y)
             y_train = np.clip(y_train, -c_y, c_y)
             y_test = np.clip(y_test, -c_y, c_y)
         else:
             c_y = float(np.max(np.abs(y_train)))
+            y_clip_fraction_train = 0.0
+            y_clip_fraction_test = 0.0
 
         geom = gram_spectrum_stats(x_train)
         geom["max_leverage"] = max_row_leverage(x_train)
@@ -440,6 +468,18 @@ class SyntheticRedundantRegressionAdapter(DatasetAdapter):
             "C_Y": float(c_y),
             "y_mean": float(y_mean),
             "y_std": float(y_std),
+            "preprocess_diagnostics": {
+                "x_row_clip_fraction_train": x_clip_fraction_train,
+                "x_row_clip_fraction_test": x_clip_fraction_test,
+                "y_clip_fraction_train": y_clip_fraction_train,
+                "y_clip_fraction_test": y_clip_fraction_test,
+                "x_row_norm_max_train_pre_clip": float(np.max(np.linalg.norm(x_train_pre_clip, axis=1))),
+                "x_row_norm_p95_train_pre_clip": float(np.percentile(np.linalg.norm(x_train_pre_clip, axis=1), 95)),
+                "x_row_norm_max_test_pre_clip": float(np.max(np.linalg.norm(x_test_pre_clip, axis=1))),
+                "y_abs_max_train_pre_clip": float(np.max(np.abs(y_train_pre_clip))),
+                "y_abs_p95_train_pre_clip": float(np.percentile(np.abs(y_train_pre_clip), 95)),
+                "y_abs_max_test_pre_clip": float(np.max(np.abs(y_test_pre_clip))),
+            },
             "synthetic_params": {
                 "feature_dim": self.feature_dim,
                 "n_prototypes": self.n_prototypes,

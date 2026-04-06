@@ -212,6 +212,30 @@ def test_synthetic_redundant_regression_supports_explicit_spectrum_and_weak_beta
     assert "prototype_retention_per_trial" in bundle.meta["poisson_subsampling_diagnostics"]["0.3"]
 
 
+def test_synthetic_redundant_regression_exposes_preclip_diagnostics():
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
+
+    adapter = SyntheticRedundantRegressionAdapter(
+        feature_dim=5,
+        n_prototypes=20,
+        copies_per_prototype=15,
+        cluster_noise=0.08,
+        label_noise=0.12,
+        generation_seed=2028,
+        poisson_diag_trials=3,
+    )
+    bundle = adapter.load(
+        SplitSpec(train_fraction=0.8, seed=7),
+        PreprocessSpec(clip_x=True, clip_x_bound=2.5, clip_y=True, clip_y_bound=1.2),
+    )
+    diag = bundle.meta["preprocess_diagnostics"]
+    assert 0.0 <= diag["x_row_clip_fraction_train"] <= 1.0
+    assert 0.0 <= diag["y_clip_fraction_train"] <= 1.0
+    assert diag["x_row_norm_max_train_pre_clip"] >= diag["x_row_norm_p95_train_pre_clip"]
+    assert diag["y_abs_max_train_pre_clip"] >= diag["y_abs_p95_train_pre_clip"]
+
+
 def test_synthetic_redundant_regression_random_generation_seed_when_omitted():
     from rpbench.config import PreprocessSpec, SplitSpec
     from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
