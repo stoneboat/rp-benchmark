@@ -6,7 +6,7 @@ import numpy as np
 
 from rpbench.config import PrivacySpec
 from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
-from rpbench.mechanisms.sheffet_rp import MechSheffetRP
+from rpbench.mechanisms.sheffet_rp import MechImprovedSheffetRP, MechSheffetRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.mechanisms.base import ReleaseBundle
 from rpbench.tasks.ols_from_release import OLSFromRelease
@@ -96,6 +96,28 @@ def test_mech_sheffet_rp_release():
     assert rb.sketch_matrix.shape == (meta["d"] + 1, 24)
     assert rb.runtime_sec >= 0
     assert "noise_var" in rb.calibration
+    assert "released_clean_sketch" in rb.diagnostics
+
+
+def test_mech_improved_sheffet_rp_release():
+    A, meta = _make_data()
+    mech = MechImprovedSheffetRP(r=24)
+    ps = PrivacySpec(epsilon=1.0, delta=1e-4)
+    mech.calibrate(ps, meta)
+    rb = mech.release(A, seed=42)
+
+    assert isinstance(rb, ReleaseBundle)
+    assert rb.mechanism_name == "Mech_Improved_Sheffet_RP"
+    assert rb.release_kind == "sketch"
+    assert rb.xtx_hat is not None
+    assert rb.xty_hat is not None
+    assert rb.sketch_matrix is not None
+    assert rb.xtx_hat.shape == (meta["d"], meta["d"])
+    assert rb.xty_hat.shape == (meta["d"],)
+    assert rb.sketch_matrix.shape == (meta["d"] + 1, 24)
+    assert rb.runtime_sec >= 0
+    assert rb.calibration["calibration_kind"] == "gaussmix_improved_sheffet"
+    assert rb.calibration["threshold_core"] == rb.calibration["noise_var"] / 2.0
     assert "released_clean_sketch" in rb.diagnostics
 
 
