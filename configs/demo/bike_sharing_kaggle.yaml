@@ -1,0 +1,51 @@
+# Kaggle Bike Sharing Demand setup matching the GaussMix Bike experiment as
+# closely as this benchmark allows.
+#
+# Required local data file:
+#   data/raw/bike_sharing_kaggle/bike_train.csv
+# or override via:
+#   dataset_params:
+#     csv_path: /absolute/or/relative/path/to/bike_train.csv
+#
+# Exact to GaussMix on the dataset side:
+# - Kaggle bike_train.csv source
+# - split seed 50 with permutation-based 80/20 split
+# - one-hot season/weather + datetime-derived features
+# - y scaled by max(abs(y_train))
+# - X scaled by max training-row L2 norm
+#
+# Benchmark-side approximation:
+# - Mech_RP_PTR is this repo's PTR mechanism, not GaussMix
+# - its tau below is a reasonable initial benchmark choice, not a paper-matched
+#   GaussMix parameter
+
+dataset: bike_sharing_kaggle
+mechanisms: [Mech_RP, Mech_RP_PTR]
+task: OLSFromRelease
+epsilon_grid:
+  [0.063095734448, 0.218776162395, 0.758577575029, 2.6302679919, 9.12010839356, 31.6227766017]
+delta_rule: 1e-5
+seed_batch:
+  mode: fixed
+  base_seed: 50
+  count: 250
+split:
+  train_fraction: 0.8
+  seed: 50
+preprocess:
+  scale_x: false
+  clip_x: false
+  clip_x_bound: 1.0
+  clip_y: false
+  clip_y_bound: 1.0
+  missing_policy: drop
+mech_params:
+  Mech_RP:
+    r: 57
+  Mech_RP_PTR:
+    r: 57
+    tau: 1.0
+    delta_r: 3.0e-06
+    delta_t: 5.0e-06
+    delta_ptr: 2.0000000000000003e-06
+output_root: data/outputs/runs/bike_sharing_kaggle
