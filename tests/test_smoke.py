@@ -122,6 +122,42 @@ def test_mini_run_with_ptr_wrapper():
     assert diag["lambda_ptr"] >= 0.0
 
 
+def test_mini_run_with_sheffet_rp():
+    """Run the native Sheffet RP mechanism end-to-end."""
+    from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
+    from rpbench.runners.run_demo import run_demo
+
+    cfg = DemoConfig(
+        dataset="synthetic_redundant_regression",
+        mechanisms=["Mech_Sheffet_RP"],
+        task="OLSFromRelease",
+        epsilon_grid=[1.0],
+        delta_rule="1e-6",
+        seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
+        split=SplitSpec(train_fraction=0.8, seed=42),
+        preprocess=PreprocessSpec(),
+        mech_params={"Mech_Sheffet_RP": {"r": 16}},
+        output_root=tempfile.mkdtemp(),
+        dataset_params={
+            "feature_dim": 4,
+            "n_prototypes": 8,
+            "copies_per_prototype": 4,
+            "generation_seed": 123,
+            "poisson_diag_trials": 2,
+        },
+    )
+
+    records = run_demo(cfg)
+    assert len(records) >= 2
+    priv = [r for r in records if r["mechanism"] == "Mech_Sheffet_RP"]
+    assert priv, "no Mech_Sheffet_RP records found"
+    rec = priv[0]
+    assert "downstream_metrics" in rec
+    assert "release_metrics" in rec
+    assert "released_clean_sketch" in rec["diagnostics"]
+    assert rec["downstream_metrics"]["test_mse"] >= 0.0
+
+
 def test_synthetic_redundant_regression_registry():
     from rpbench.runners.run_demo import DATASET_REGISTRY
 
