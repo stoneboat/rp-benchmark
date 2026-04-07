@@ -1,5 +1,7 @@
-# Likely-positive regime: high redundancy, small cluster noise, weaker-direction signal,
-# and a smaller RP sketch so the Poisson wrapper has room to reduce inner calibration.
+# Combined synthetic redundant-regression comparison config.
+#
+# Uses the same dataset setup for all native RP-family mechanisms so they can be
+# compared under a single run/report.
 dataset: synthetic_redundant_regression
 dataset_params:
   feature_dim: 12
@@ -19,7 +21,7 @@ dataset_params:
   blocki12_jl_diag_rs: [20, 30]
   blocki12_jl_diag_trials: 25
   blocki12_jl_diag_seed: 4243
-mechanisms: [Mech_RP, Mech_RP_Pois]
+mechanisms: [Mech_RP, Mech_RP_Pois, Mech_Sheffet_RP, Mech_Improved_Sheffet_RP]
 task: OLSFromRelease
 epsilon_grid: [0.1, 0.25, 0.5, 1.0]
 delta_rule: 1e-6
@@ -43,4 +45,8 @@ mech_params:
   Mech_RP_Pois:
     r: 20
     q: 0.3
-output_root: data/outputs/runs/synthetic_positive_q03
+  Mech_Sheffet_RP:
+    r: 20
+  Mech_Improved_Sheffet_RP:
+    r: 20
+output_root: data/outputs/runs/synthetic_redundant_regression
