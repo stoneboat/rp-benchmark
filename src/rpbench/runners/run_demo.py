@@ -16,6 +16,7 @@ from rpbench.datasets.flight import FlightAdapter
 from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
 from rpbench.datasets.base import DatasetBundle
 from rpbench.mechanisms.base import Mechanism
+from rpbench.mechanisms.modified_gaussmix import MechModifiedGaussMix
 from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
 from rpbench.mechanisms.sheffet_rp import MechImprovedSheffetRP, MechSheffetRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
@@ -31,6 +32,7 @@ MECHANISM_REGISTRY: dict[str, type] = {
     "Mech_RP_PTR": MechRPPTR,
     "Mech_Sheffet_RP": MechSheffetRP,
     "Mech_Improved_Sheffet_RP": MechImprovedSheffetRP,
+    "Mech_Modified_GaussMix": MechModifiedGaussMix,
     "Blocki12_JL": Blocki12JL,
 }
 

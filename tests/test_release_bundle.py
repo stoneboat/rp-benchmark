@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from rpbench.config import PrivacySpec
+from rpbench.mechanisms.modified_gaussmix import MechModifiedGaussMix
 from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
 from rpbench.mechanisms.sheffet_rp import MechImprovedSheffetRP, MechSheffetRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
@@ -121,6 +122,38 @@ def test_mech_improved_sheffet_rp_release():
     assert "released_clean_sketch" in rb.diagnostics
 
 
+def test_mech_modified_gaussmix_release():
+    A, meta = _make_data()
+    mech = MechModifiedGaussMix(r=24)
+    ps = PrivacySpec(epsilon=1.0, delta=1e-4)
+    mech.calibrate(ps, meta)
+    rb = mech.release(A, seed=42)
+
+    assert isinstance(rb, ReleaseBundle)
+    assert rb.mechanism_name == "Mech_Modified_GaussMix"
+    assert rb.release_kind == "sketch"
+    assert rb.xtx_hat is not None
+    assert rb.xty_hat is not None
+    assert rb.sketch_matrix is not None
+    assert rb.xtx_hat.shape == (meta["d"], meta["d"])
+    assert rb.xty_hat.shape == (meta["d"],)
+    assert rb.sketch_matrix.shape == (24, meta["d"] + 1)
+    assert rb.runtime_sec >= 0
+    assert rb.calibration["calibration_kind"] == "modified_gaussmix_full_dp"
+    assert rb.calibration["aug_row_bound_sq"] == meta["l"] ** 2
+    for key in (
+        "branch",
+        "epsilon",
+        "delta",
+        "r",
+        "tau",
+        "sigma_matrix",
+        "lambda_tilde",
+        "effective_noise_variance",
+    ):
+        assert key in rb.diagnostics
+
+
 def test_both_same_shape():
     A, meta = _make_data()
     ps = PrivacySpec(epsilon=2.0, delta=1e-4)
@@ -224,6 +257,22 @@ def test_mech_rp_ptr_deterministic():
     np.testing.assert_array_equal(rb1.xty_hat, rb2.xty_hat)
     assert rb1.diagnostics["eta"] == rb2.diagnostics["eta"]
     assert rb1.diagnostics["lambda_ptr"] == rb2.diagnostics["lambda_ptr"]
+
+
+def test_mech_modified_gaussmix_deterministic():
+    A, meta = _make_data()
+    ps = PrivacySpec(epsilon=1.5, delta=1e-4)
+    mech1 = MechModifiedGaussMix(r=24)
+    mech2 = MechModifiedGaussMix(r=24)
+    mech1.calibrate(ps, meta)
+    mech2.calibrate(ps, meta)
+    rb1 = mech1.release(A, seed=77)
+    rb2 = mech2.release(A, seed=77)
+
+    np.testing.assert_array_equal(rb1.sketch_matrix, rb2.sketch_matrix)
+    np.testing.assert_array_equal(rb1.xtx_hat, rb2.xtx_hat)
+    np.testing.assert_array_equal(rb1.xty_hat, rb2.xty_hat)
+    assert rb1.diagnostics["branch"] == rb2.diagnostics["branch"]
 
 
 def test_autompg_public_clipping_bounds_are_enforced():
