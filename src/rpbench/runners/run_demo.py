@@ -14,6 +14,7 @@ from rpbench.datasets.bike_sharing import BikeSharingAdapter
 from rpbench.datasets.bike_sharing_kaggle import BikeSharingKaggleAdapter
 from rpbench.datasets.flight import FlightAdapter
 from rpbench.datasets.synthetic_redundant_regression import SyntheticRedundantRegressionAdapter
+from rpbench.datasets.tecator import TecatorAdapter
 from rpbench.datasets.base import DatasetBundle
 from rpbench.mechanisms.base import Mechanism
 from rpbench.mechanisms.modified_gaussmix import MechModifiedGaussMix
@@ -42,6 +43,7 @@ DATASET_REGISTRY: dict[str, type] = {
     "bike_sharing_kaggle": BikeSharingKaggleAdapter,
     "flight": FlightAdapter,
     "synthetic_redundant_regression": SyntheticRedundantRegressionAdapter,
+    "tecator": TecatorAdapter,
 }
 
 

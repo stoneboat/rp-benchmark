@@ -238,6 +238,53 @@ def test_synthetic_redundant_regression_registry():
     assert DATASET_REGISTRY["synthetic_redundant_regression"].name == "synthetic_redundant_regression"
 
 
+def test_tecator_registry():
+    from rpbench.runners.run_demo import DATASET_REGISTRY
+
+    assert "tecator" in DATASET_REGISTRY
+    assert DATASET_REGISTRY["tecator"].name == "tecator"
+
+
+def test_tecator_adapter_matches_gaussmix_normalization(monkeypatch):
+    import numpy as np
+    import pandas as pd
+
+    from rpbench.config import PreprocessSpec, SplitSpec
+    from rpbench.datasets.tecator import TecatorAdapter
+
+    class FakeBunch:
+        def __init__(self):
+            self.data = pd.DataFrame(
+                {
+                    "Absorbance1": [1.0, 2.0, 3.0, 4.0, 5.0],
+                    "Absorbance2": [2.0, 1.0, 0.5, 1.5, 2.5],
+                    "Absorbance3": [0.0, 1.0, 0.0, 1.0, 0.5],
+                }
+            )
+            self.target = pd.Series([10.0, 20.0, 40.0, 80.0, 160.0], name="Fat")
+            self.details = {"id": "dummy-tecator"}
+
+    monkeypatch.setattr(
+        "rpbench.datasets.tecator.fetch_openml",
+        lambda *args, **kwargs: FakeBunch(),
+    )
+
+    adapter = TecatorAdapter(cache_dir=tempfile.mkdtemp())
+    bundle = adapter.load(
+        SplitSpec(train_fraction=0.8, seed=50),
+        PreprocessSpec(),
+    )
+
+    assert bundle.X_train.shape == (4, 3)
+    assert bundle.X_test.shape == (1, 3)
+    assert bundle.meta["feature_columns"] == ["Absorbance1", "Absorbance2", "Absorbance3"]
+    assert bundle.meta["target_column"] == "Fat"
+    assert np.isclose(np.max(np.abs(bundle.y_train)), 1.0)
+    assert np.isclose(np.max(np.linalg.norm(bundle.X_train, axis=1)), 1.0)
+    assert np.isclose(bundle.meta["C_X"], 1.0)
+    assert np.isclose(bundle.meta["C_Y"], 1.0)
+
+
 def test_run_demo_nonprivate_only():
     from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
     from rpbench.runners.run_demo import run_demo

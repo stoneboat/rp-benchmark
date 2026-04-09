@@ -1,0 +1,52 @@
+# GaussMix-style Tecator parity config.
+#
+# Dataset-side parity to the committed GaussMix linear-regression script:
+# - OpenML: fetch_openml(name="Tecator", version=1, as_frame=True)
+# - permutation-first 80/20 split with seed 50
+# - y scaled by max(abs(y_train))
+# - X scaled by the maximum training-row L2 norm
+#
+# Core experiment parameters mapped from the committed GaussMix script:
+# - epsilon grid = np.logspace(-1.2, 1.5, 6)
+# - delta = 1 / n^2
+# - target_varrho = 1e-10
+# - percentage_k = 2.5
+# - Monte Carlo iterations = 250
+#
+# Benchmark-native mapping:
+# - GaussMix paper/script sketch dimension k maps to rp-benchmark r
+# - Tecator uses d = 100 features, so
+#     r = max(int(2.5 * d), int(2.5 * log(1 / 1e-10))) = max(250, 57) = 250
+
+dataset: tecator
+mechanisms: [Mech_RP, Mech_Improved_Sheffet_RP, Mech_Modified_GaussMix]
+task: OLSFromRelease
+epsilon_grid:
+  [0.063095734448, 0.218776162395, 0.758577575029, 2.6302679919, 9.12010839356, 31.6227766017]
+delta_rule: 1/n^2
+seed_batch:
+  mode: fixed
+  base_seed: 50
+  count: 250
+split:
+  train_fraction: 0.8
+  seed: 50
+preprocess:
+  scale_x: false
+  clip_x: false
+  clip_x_bound: 1.0
+  clip_y: false
+  clip_y_bound: 1.0
+  missing_policy: drop
+dataset_params:
+  cache_dir: data/cache
+mech_params:
+  Mech_RP:
+    r: 250
+  Mech_Sheffet_RP:
+    r: 250
+  Mech_Improved_Sheffet_RP:
+    r: 250
+  Mech_Modified_GaussMix:
+    r: 250
+output_root: data/outputs/runs/tecator
