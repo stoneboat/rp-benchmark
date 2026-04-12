@@ -25,7 +25,7 @@ delta_rule: 1e-6
 seed_batch:
   mode: fixed
   base_seed: 50
-  count: 20
+  count: 250
 split:
   train_fraction: 0.8
   seed: 50
