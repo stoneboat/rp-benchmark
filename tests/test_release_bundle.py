@@ -10,6 +10,7 @@ from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
 from rpbench.mechanisms.sheffet_rp import MechImprovedSheffetRP, MechSheffetRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
 from rpbench.mechanisms.base import ReleaseBundle
+from rpbench.metrics.release import relative_frobenius_xtx_normalized
 from rpbench.tasks.ols_from_release import OLSFromRelease
 from rpbench.datasets.autompg import AutoMPGAdapter
 from rpbench.config import SplitSpec, PreprocessSpec
@@ -202,6 +203,38 @@ def test_ols_from_release_uses_rp_sketch_decoder():
     beta = task.fit_from_release(rb, train_meta={})
 
     np.testing.assert_allclose(beta, np.array([5.0, 4.0]))
+
+
+def test_normalized_covariance_metric_debiases_sheffet_sketch():
+    xtx_true = np.diag([2.0, 5.0])
+    noise_var = 3.0
+    r = 4
+    rb = ReleaseBundle(
+        mechanism_name="Mech_Sheffet_RP",
+        release_kind="sketch",
+        xtx_hat=r * (xtx_true + noise_var * np.eye(2)),
+        xty_hat=np.zeros(2),
+        calibration={"r": r, "noise_var": noise_var},
+        diagnostics={"released_clean_sketch": False, "noise_var": noise_var},
+    )
+
+    assert relative_frobenius_xtx_normalized(xtx_true, rb) == 0.0
+
+
+def test_normalized_covariance_metric_debiases_gaussmix_sketch():
+    xtx_true = np.array([[2.0, 0.5], [0.5, 5.0]])
+    noise_var = 1.5
+    r = 6
+    rb = ReleaseBundle(
+        mechanism_name="Mech_Modified_GaussMix",
+        release_kind="sketch",
+        xtx_hat=r * (xtx_true + noise_var * np.eye(2)),
+        xty_hat=np.zeros(2),
+        calibration={"r": r, "sigma_matrix": noise_var},
+        diagnostics={"r": r, "effective_noise_variance": noise_var},
+    )
+
+    assert relative_frobenius_xtx_normalized(xtx_true, rb) == 0.0
 
 
 def test_mech_rp_ptr_release():

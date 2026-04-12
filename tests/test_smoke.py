@@ -190,6 +190,7 @@ def test_mini_run_with_improved_sheffet_rp():
     rec = priv[0]
     assert "downstream_metrics" in rec
     assert "release_metrics" in rec
+    assert "rel_fro_xtx_normalized" in rec["release_metrics"]
     assert rec["diagnostics"]["noise_var"] >= 0.0
     assert rec["downstream_metrics"]["test_mse"] >= 0.0
 
@@ -226,6 +227,7 @@ def test_mini_run_with_modified_gaussmix():
     rec = priv[0]
     assert "downstream_metrics" in rec
     assert "release_metrics" in rec
+    assert "rel_fro_xtx_normalized" in rec["release_metrics"]
     assert rec["diagnostics"]["r"] == 16
     assert rec["diagnostics"]["effective_noise_variance"] >= 0.0
     assert rec["downstream_metrics"]["test_mse"] >= 0.0

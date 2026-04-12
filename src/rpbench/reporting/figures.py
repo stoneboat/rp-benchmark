@@ -33,10 +33,13 @@ def _aggregate_metric(
             continue
         if delta_val is None and rec["delta"] is not None:
             delta_val = rec["delta"]
+        section = rec.get(metric_section, {})
+        if metric_key not in section:
+            continue
         rows.append({
             "mechanism": rec["mechanism"],
             "epsilon": rec["epsilon"],
-            metric_key: rec[metric_section][metric_key],
+            metric_key: section[metric_key],
         })
 
     df = pd.DataFrame(rows)
@@ -93,7 +96,12 @@ def ols_plot_eps_vs_mse(records: list[dict[str, Any]], output_path: str | Path) 
 def plot_eps_vs_covariance_error(records: list[dict[str, Any]], output_path: str | Path) -> None:
     """Plot epsilon vs covariance quality using relative Frobenius error."""
 
-    agg, delta_val = _aggregate_metric(records, "rel_fro_xtx", "release_metrics")
+    metric_key = "rel_fro_xtx_normalized"
+    agg, delta_val = _aggregate_metric(records, metric_key, "release_metrics")
+    normalized = not agg.empty
+    if agg.empty:
+        metric_key = "rel_fro_xtx"
+        agg, delta_val = _aggregate_metric(records, metric_key, "release_metrics")
     if agg.empty:
         return
     dataset = _dataset_name(records)
@@ -108,9 +116,15 @@ def plot_eps_vs_covariance_error(records: list[dict[str, Any]], output_path: str
         )
 
     ax.set_xlabel(r"$\varepsilon$")
-    ax.set_ylabel(r"Relative Frobenius Error of $X^\top X$")
+    ylabel = r"Relative Frobenius Error of $X^\top X$"
+    if normalized:
+        ylabel += " (normalized/debiased diagnostic)"
+    ax.set_ylabel(ylabel)
     delta_str = f"{delta_val:.2e}" if delta_val else "1/n^2"
-    ax.set_title(f"Covariance Release Quality: {dataset} (δ = {delta_str})")
+    title_prefix = "Covariance Release Quality"
+    if normalized:
+        title_prefix += " (normalized)"
+    ax.set_title(f"{title_prefix}: {dataset} (δ = {delta_str})")
     ax.legend()
     ax.grid(True, alpha=0.3)
 

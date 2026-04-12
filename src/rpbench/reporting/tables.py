@@ -22,6 +22,10 @@ def build_summary_table(records: list[dict[str, Any]], output_path: str | Path) 
             "seed": rec["seed"],
             "test_mse": rec["downstream_metrics"]["test_mse"],
             "rel_fro_xtx": rec["release_metrics"]["rel_fro_xtx"],
+            "rel_fro_xtx_normalized": rec["release_metrics"].get(
+                "rel_fro_xtx_normalized",
+                rec["release_metrics"]["rel_fro_xtx"],
+            ),
             "runtime_sec": rec["runtime"]["runtime_sec"],
         })
 
@@ -35,6 +39,8 @@ def build_summary_table(records: list[dict[str, Any]], output_path: str | Path) 
         test_mse_std=("test_mse", "std"),
         rel_fro_mean=("rel_fro_xtx", "mean"),
         rel_fro_std=("rel_fro_xtx", "std"),
+        rel_fro_normalized_mean=("rel_fro_xtx_normalized", "mean"),
+        rel_fro_normalized_std=("rel_fro_xtx_normalized", "std"),
         runtime_mean=("runtime_sec", "mean"),
         n_seeds=("seed", "count"),
     ).reset_index()

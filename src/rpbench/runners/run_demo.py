@@ -21,7 +21,10 @@ from rpbench.mechanisms.modified_gaussmix import MechModifiedGaussMix
 from rpbench.mechanisms.rp_ndis import MechRP, MechRPPois, MechRPPTR
 from rpbench.mechanisms.sheffet_rp import MechImprovedSheffetRP, MechSheffetRP
 from rpbench.mechanisms.baselines.blocki12_jl import Blocki12JL
-from rpbench.metrics.release import relative_frobenius_xtx
+from rpbench.metrics.release import (
+    relative_frobenius_xtx,
+    relative_frobenius_xtx_normalized,
+)
 from rpbench.tasks.ols_from_release import OLSFromRelease
 from rpbench.utils.io import generate_run_id, save_jsonl
 from rpbench.utils.linear_algebra import augmented_data, gram_matrix
@@ -119,8 +122,10 @@ def run_demo_from_bundle(cfg: DemoConfig, bundle: DatasetBundle, pub_meta: dict[
 
                 rb = mech.release(A_train, seed)
 
-                # Release metric
+                # Release metrics. The normalized variant is diagnostic-only:
+                # it does not mutate the release consumed by the downstream task.
                 rel_fro = relative_frobenius_xtx(xtx_true, rb.xtx_hat)
+                rel_fro_normalized = relative_frobenius_xtx_normalized(xtx_true, rb)
 
                 # Downstream
                 beta_hat = task.fit_from_release(rb, pub_meta)
@@ -135,7 +140,10 @@ def run_demo_from_bundle(cfg: DemoConfig, bundle: DatasetBundle, pub_meta: dict[
                     "delta": delta,
                     "seed": seed,
                     "seed_index": seed_index,
-                    "release_metrics": {"rel_fro_xtx": rel_fro},
+                    "release_metrics": {
+                        "rel_fro_xtx": rel_fro,
+                        "rel_fro_xtx_normalized": rel_fro_normalized,
+                    },
                     "downstream_metrics": ds_metrics,
                     "runtime": {"runtime_sec": rb.runtime_sec},
                     "diagnostics": rb.diagnostics,
