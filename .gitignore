@@ -6,8 +6,6 @@ dist/
 build/
 *.egg
 
-docs/*
-
 # Virtual environments
 .venv/
 venv/
@@ -22,6 +20,9 @@ data/outputs/
 .vscode/
 *.swp
 *.swo
+
+# Local documentation not included in publication repo
+docs/
 
 # OS
 .DS_Store
