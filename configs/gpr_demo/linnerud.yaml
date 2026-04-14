@@ -1,0 +1,67 @@
+# GPR + NDIS demo config for the Linnerud dataset.
+#
+# Source: sklearn.datasets.load_linnerud()
+# Linnerud has 3 target columns: Weight, Waist, Pulse. The standalone GPR path
+# is scalar-output, so the adapter selects one target column by target_index.
+#
+# Adapter default:
+#   target_index: 0  ->  Weight
+#
+# This demo config uses:
+#   target_index: 2  ->  Pulse
+#
+# To use another target, change dataset_params.target_index:
+#   1 -> Waist
+#   2 -> Pulse
+#
+# The selected target is divided by max(abs(y_train)), then clipped to the
+# configured clip_y_bound. This demo uses clip_y_bound=0.5, so B_bound=0.5 is a
+# valid public bound. The RBF kernel has k(x,x)=1, so l_bound=1.0 exactly.
+
+dataset: linnerud
+
+dataset_params:
+  target_index: 2
+
+# Privacy parameter
+epsilon: 1.0
+delta_rule: "1e-5"
+
+# RBF kernel hyperparameters
+kernel: rbf
+lengthscale: 5.0
+
+# Observation noise variance sigma_n^2.
+# With B_bound=0.5, sigma_n2=250.0 preserves roughly the same sensitivity scale
+# as B_bound=1.0, sigma_n2=1000.0 while making the config less pathological.
+sigma_n2: 250.0
+
+# NDIS sensitivity bounds (public, must be valid before release)
+l_bound: 1.0
+B_bound: 0.5
+
+# Public query point: choose x_star from the test split
+x_star_source: test
+x_star_index: 0
+
+# Multiple seeds for release sampling (same tau*, different noise draws)
+seeds: [2734335219, 2905568749, 2703185305, 3085492084, 1659915345]
+
+# Train/test split: Linnerud has only 20 samples, so 0.8 gives 16 train / 4 test.
+split:
+  train_fraction: 0.8
+  seed: 42
+
+# Linnerud preprocessing:
+# - StandardScaler on X, fit on train only
+# - row clipping after scaling
+# - target max-abs normalization inside the adapter; clip_y_bound=0.5 keeps B=0.5
+preprocess:
+  scale_x: true
+  clip_x: true
+  clip_x_bound: 3.0
+  clip_y: true
+  clip_y_bound: 0.5
+
+# Where to save JSONL records
+output_root: data/outputs/gpr_ndis_runs

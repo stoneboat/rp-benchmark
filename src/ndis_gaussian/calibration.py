@@ -193,9 +193,19 @@ def delta_bar_cov(
     -----
     The 2D infimum is computed via a coarse grid search followed by local
     refinement using scipy.optimize.minimize (Nelder-Mead).
+
+    Large rho_inf guard: when rho_inf > 700, exp(rho_inf) overflows. In this
+    regime k = 1/(2c) -> 0, the u-domain collapses, B_* -> 0, the second term
+    vanishes, and the infimum over s >= 0 is at s=0 giving value 1. We return
+    1.0 directly (tight for this regime).
     """
     if rho_inf <= 0.0 or nu <= 0.0 or epsilon >= nu / 2.0:
         return 0.0
+
+    # Guard against exp(rho_inf) overflow: when rho_inf > 700, k -> 0 and
+    # the objective approaches 1 (no useful covariance-shift bound).
+    if rho_inf > 700.0:
+        return 1.0
 
     c = math.exp(rho_inf) - 1.0
     k = 1.0 / (2.0 * c)  # upper bound on u (exclusive)

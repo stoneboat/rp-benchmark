@@ -11,13 +11,14 @@ dataset: breast_cancer
 
 # Privacy grid
 epsilon_grid: [1.0]
-delta_rule: "1e-5"        # fixed delta; use "1/n^2" for data-size-dependent delta
+delta_rule: "1e-5"        
 
 # BLR regularization (Proposition 7 requires lambda > 0)
 lambda_reg: 3.0
 
 # Multiple seeds for variance estimation
-seeds: [42, 43, 44, 45, 46]
+seeds: [2734335219, 2905568749, 2703185305, 3085492084, 1659915345]
+
 
 # Train/test split
 split:
