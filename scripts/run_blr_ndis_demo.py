@@ -99,39 +99,33 @@ def _evaluate(theta: np.ndarray, X_test: np.ndarray, y_test: np.ndarray) -> dict
 # Main per-run function
 # ---------------------------------------------------------------------------
 
-def _run_single(
+def _run_private_release(
     *,
-    X_train: np.ndarray,
-    y_train: np.ndarray,
     X_test: np.ndarray,
     y_test: np.ndarray,
+    gaussian_output: Any,
+    wrapper: NDISGaussianWrapper,
+    metrics_hat: dict[str, float],
     public_meta: dict[str, Any],
     epsilon: float,
     delta: float,
     lambda_reg: float,
     seed: int,
+    calibration_wall_time_s: float,
 ) -> dict[str, Any]:
-    """Fit BLR, calibrate NDIS wrapper, release, evaluate."""
+    """Sample one release from an already calibrated wrapper and evaluate it."""
     t0 = time.perf_counter()
-
-    # Step 1: Fit BLR (Definition 7)
-    blr = BLRGaussianOutput(lambda_reg=lambda_reg)
-    gaussian_output = blr.fit(X_train, y_train)
-
-    # Step 2: Calibrate NDIS wrapper (Figure 5, Step 1)
-    wrapper = NDISGaussianWrapper()
-    wrapper.calibrate(blr, epsilon=epsilon, delta=delta, public_meta=public_meta)
-    tau_star = wrapper.tau_star
-    sigma_std = wrapper.sigma_std
 
     # Step 3: Release theta_tilde (Figure 5, Step 2)
     wrapped = wrapper.release(gaussian_output, seed=seed)
     theta_tilde = wrapped.theta_tilde
+    tau_star = wrapper.tau_star
+    sigma_std = wrapper.sigma_std
 
     t1 = time.perf_counter()
 
-    # Step 4: Evaluate both non-private (theta_hat) and private (theta_tilde)
-    metrics_hat = _evaluate(gaussian_output.mu, X_test, y_test)
+    # Step 4: Evaluate private theta_tilde; the non-private metrics are shared
+    # across seeds because theta_hat is fitted once.
     metrics_tilde = _evaluate(theta_tilde, X_test, y_test)
 
     sens = wrapped.sensitivity
@@ -159,25 +153,21 @@ def _run_single(
         "metrics_nonprivate": metrics_hat,
         "metrics_private": metrics_tilde,
         "wall_time_s": t1 - t0,
+        "calibration_wall_time_s": calibration_wall_time_s,
     }
     return record
 
 
 def _run_nonprivate(
     *,
-    X_train: np.ndarray,
-    y_train: np.ndarray,
     X_test: np.ndarray,
     y_test: np.ndarray,
+    gaussian_output: Any,
     lambda_reg: float,
     public_meta: dict[str, Any],
+    fit_wall_time_s: float,
 ) -> dict[str, Any]:
-    """Fit BLR without privacy noise (baseline reference)."""
-    t0 = time.perf_counter()
-    blr = BLRGaussianOutput(lambda_reg=lambda_reg)
-    gaussian_output = blr.fit(X_train, y_train)
-    t1 = time.perf_counter()
-
+    """Evaluate the fitted BLR without privacy noise (baseline reference)."""
     metrics = _evaluate(gaussian_output.mu, X_test, y_test)
     return {
         "mechanism": "NonPrivate",
@@ -189,7 +179,7 @@ def _run_nonprivate(
         "public_meta": {k: v for k, v in public_meta.items()},
         "metrics_nonprivate": metrics,
         "metrics_private": metrics,  # same — no noise added
-        "wall_time_s": t1 - t0,
+        "wall_time_s": fit_wall_time_s,
     }
 
 
@@ -250,41 +240,78 @@ def main() -> None:
 
     records: list[dict[str, Any]] = []
 
+    # Fit BLR once (Definition 7). The fitted Gaussian output is shared by the
+    # non-private baseline and all private releases.
+    print("Fitting BLR surrogate ...")
+    t_fit = time.perf_counter()
+    blr = BLRGaussianOutput(lambda_reg=lambda_reg)
+    gaussian_output = blr.fit(bundle.X_train, bundle.y_train)
+    fit_wall_time_s = time.perf_counter() - t_fit
+    metrics_hat = _evaluate(gaussian_output.mu, bundle.X_test, bundle.y_test)
+
     # Non-private baseline
     rec_np = _run_nonprivate(
-        X_train=bundle.X_train,
-        y_train=bundle.y_train,
         X_test=bundle.X_test,
         y_test=bundle.y_test,
+        gaussian_output=gaussian_output,
         lambda_reg=lambda_reg,
         public_meta=public_meta,
+        fit_wall_time_s=fit_wall_time_s,
     )
     records.append(rec_np)
     print(
         f"[NonPrivate] accuracy={rec_np['metrics_private']['accuracy']:.4f}, "
-        f"log_loss={rec_np['metrics_private']['log_loss']:.4f}"
+        f"log_loss={rec_np['metrics_private']['log_loss']:.4f}, "
+        f"fit_time={fit_wall_time_s:.3f}s"
     )
 
     # Private runs
     for epsilon in epsilon_grid:
+        try:
+            # Calibrate once per epsilon (Figure 5, Step 1), then reuse the
+            # calibrated wrapper for all seed draws at this privacy level.
+            t_cal = time.perf_counter()
+            wrapper = NDISGaussianWrapper()
+            wrapper.calibrate(blr, epsilon=epsilon, delta=delta, public_meta=public_meta)
+            calibration_wall_time_s = time.perf_counter() - t_cal
+            print(
+                f"[eps={epsilon:.1f}] calibrated "
+                f"tau*={wrapper.tau_star:.4e}, "
+                f"sigma={wrapper.sigma_std:.4e}, "
+                f"cal_time={calibration_wall_time_s:.3f}s"
+            )
+        except Exception as exc:
+            print(f"[eps={epsilon:.1f}] CALIBRATION ERROR: {exc}")
+            for seed in seeds:
+                records.append({
+                    "mechanism": "BLR_NDIS",
+                    "dataset": "breast_cancer",
+                    "epsilon": epsilon,
+                    "delta": delta,
+                    "lambda_reg": lambda_reg,
+                    "seed": seed,
+                    "error": str(exc),
+                })
+            continue
+
         for seed in seeds:
             try:
-                rec = _run_single(
-                    X_train=bundle.X_train,
-                    y_train=bundle.y_train,
+                rec = _run_private_release(
                     X_test=bundle.X_test,
                     y_test=bundle.y_test,
+                    gaussian_output=gaussian_output,
+                    wrapper=wrapper,
+                    metrics_hat=metrics_hat,
                     public_meta=public_meta,
                     epsilon=epsilon,
                     delta=delta,
                     lambda_reg=lambda_reg,
                     seed=seed,
+                    calibration_wall_time_s=calibration_wall_time_s,
                 )
                 records.append(rec)
                 print(
                     f"[eps={epsilon:.1f}, seed={seed}] "
-                    f"tau*={rec['privacy']['tau_star']:.4e}, "
-                    f"sigma={rec['privacy']['sigma_std']:.4e}, "
                     f"acc={rec['metrics_private']['accuracy']:.4f}, "
                     f"loss={rec['metrics_private']['log_loss']:.4f}"
                 )

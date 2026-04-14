@@ -10,11 +10,11 @@
 dataset: breast_cancer
 
 # Privacy grid
-epsilon_grid: [0.5, 1.0, 2.0, 4.0]
-delta_rule: "1e-6"        # fixed delta; use "1/n^2" for data-size-dependent delta
+epsilon_grid: [1.0]
+delta_rule: "1e-5"        # fixed delta; use "1/n^2" for data-size-dependent delta
 
 # BLR regularization (Proposition 7 requires lambda > 0)
-lambda_reg: 0.01
+lambda_reg: 3.0
 
 # Multiple seeds for variance estimation
 seeds: [42, 43, 44, 45, 46]
@@ -31,7 +31,7 @@ split:
 preprocess:
   scale_x: true
   clip_x: true
-  clip_x_bound: 3.0
+  clip_x_bound: 1.5
 
 # Where to save JSONL records
 output_root: data/outputs/blr_ndis_runs
