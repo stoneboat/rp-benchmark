@@ -1,27 +1,35 @@
 # rp-benchmark
 
-`rp-benchmark` supports empirical study of random projection (RP) as a
-privacy-preserving approach for statistical learning. The repo is intended as a
-small, configurable benchmark where users can plug in mechanisms, datasets, and
-downstream tasks, then evaluate RP-based algorithms under a common experiment
-runner and reporting pipeline.
+`rp-benchmark` supports empirical study of privacy mechanisms for statistical
+learning. It started as a configurable benchmark for random-projection (RP)
+mechanisms and now also includes a standalone implementation of the
+NDIS-calibrated Gaussian mechanism for Gaussian-output algorithms.
+
+The repository currently has two complementary experiment paths:
+
+- The original `rpbench` path: RP-style private releases of augmented regression
+  data `[X | y]`, evaluated through the shared OLS benchmark runner and report
+  builder.
+- The `ndis_gaussian` path: a generic wrapper for algorithms that output a
+  Gaussian pair `(mu, Sigma)`. The wrapper calibrates an additive covariance
+  inflation `tau * I` from the algorithm's NDIS sensitivity bound, then samples
+  the private release from `N(mu, Sigma + tau * I)`.
+
+The `ndis_gaussian` package is intentionally separate from `rpbench`: it does
+not import from `rpbench`, while the standalone demo scripts may reuse
+`rpbench` dataset adapters.
 
 Current implementation status:
 
-- Mechanism family: RP-based private releases for augmented regression data
-  `[X | y]`, plus comparison baselines.
+- RP benchmark path: RP-based private releases for augmented regression data,
+  comparison baselines, OLS-from-release evaluation, covariance-release metrics,
+  plots, CSV tables, and markdown summaries.
+- NDIS Gaussian-output path: `NDISGaussianWrapper`, shared calibration utilities,
+  BLR and scalar-output GPR Gaussian-output algorithms, standalone demo scripts,
+  and compact CSV summaries.
 - Datasets: Auto MPG, OpenML Bike Sharing, Kaggle Bike Sharing Demand, NYC
-  flight delays, Tecator, and synthetic redundant regression.
-- Downstream task: OLS fitted from released sufficient statistics
-  (`OLSFromRelease`).
-- Release-quality metric: relative Frobenius error of the covariance block
-  `X^T X`.
-- Reporting: aggregate CSV tables, OLS test-MSE plots, covariance-error plots,
-  and markdown summaries.
-
-The framework is broader than the current demos: additional dataset adapters,
-mechanisms, metrics, and downstream tasks can be added behind the same config
-and runner abstractions.
+  flight delays, Tecator, synthetic redundant regression, Wisconsin Diagnostic
+  Breast Cancer, and Linnerud.
 
 ## Quick start (local)
 
@@ -39,12 +47,16 @@ python scripts/run_demo.py --config configs/demo/autompg.yaml
 python scripts/run_demo.py --config configs/demo/bike_sharing.yaml
 python scripts/run_demo.py --config configs/demo/synthetic_redundant_regression.yaml
 
-# 4. Build a report for a run directory
+# 4. Run the NDIS Gaussian-output standalone demos
+python scripts/run_blr_ndis_demo.py --config configs/blr_demo/breast_cancer.yaml
+python scripts/run_gpr_ndis_demo.py --config configs/gpr_demo/linnerud.yaml
+
+# 5. Build a report for an RP benchmark run directory
 python scripts/build_report.py \
   --input-root data/outputs/runs/synthetic_redundant_regression \
   --output-root reports/synthetic_redundant_regression
 
-# 5. Run tests
+# 6. Run tests
 pytest -q
 ```
 
@@ -77,7 +89,11 @@ python scripts/run_demo.py --config configs/demo/autompg.yaml
 python scripts/run_demo.py --config configs/demo/bike_sharing.yaml
 python scripts/run_demo.py --config configs/demo/synthetic_redundant_regression.yaml
 
-# 4. Build a report for a run directory
+# 4. Run the NDIS Gaussian-output standalone demos
+python scripts/run_blr_ndis_demo.py --config configs/blr_demo/breast_cancer.yaml
+python scripts/run_gpr_ndis_demo.py --config configs/gpr_demo/linnerud.yaml
+
+# 5. Build a report for an RP benchmark run directory
 python scripts/build_report.py \
   --input-root data/outputs/runs/synthetic_redundant_regression \
   --output-root reports/synthetic_redundant_regression
@@ -100,6 +116,8 @@ top-to-bottom.
 
 ## What a benchmark run does
 
+The original `scripts/run_demo.py` path is the RP/OLS benchmark path. It:
+
 1. Loads the configured dataset adapter and applies that adapter's preprocessing
    contract.
 2. Builds public metadata used for calibration, including train size,
@@ -117,9 +135,19 @@ top-to-bottom.
 6. The report builder reads one run directory and writes timestamped CSV, PNG,
    and markdown outputs under the selected report directory.
 
+The standalone `scripts/run_blr_ndis_demo.py` and `scripts/run_gpr_ndis_demo.py`
+paths exercise the newer generic NDIS Gaussian-output wrapper. They:
+
+1. Load the configured dataset adapter and public preprocessing bounds.
+2. Fit a Gaussian-output algorithm, currently BLR or scalar-output GPR.
+3. Calibrate `tau_star` with `NDISGaussianWrapper` from the algorithm-specific
+   sensitivity formulas.
+4. Release samples from `N(mu, Sigma + tau_star * I)` for the configured seeds.
+5. Save raw JSONL records under each config's `output_root`.
+
 ## Configured Demos
 
-All demo configs live under `configs/demo/`.
+The original RP/OLS benchmark configs live under `configs/demo/`.
 
 | Config | Dataset | Mechanisms | Main purpose |
 | --- | --- | --- | --- |
@@ -131,6 +159,13 @@ All demo configs live under `configs/demo/`.
 | `synthetic_redundant_regression.yaml` | synthetic redundant-cluster regression | `Mech_RP`, `Mech_RP_Pois`, `Mech_Sheffet_RP`, `Mech_Improved_Sheffet_RP`, `Mech_Modified_GaussMix` | controlled redundant-regression comparison |
 | `synthetic_ptr.yaml` | synthetic redundant-cluster regression | `Mech_RP`, `Mech_RP_PTR` | PTR comparison in a synthetic regime |
 | `tecator.yaml` | Tecator from OpenML `name=Tecator`, `version=1` | `Mech_RP`, `Mech_Improved_Sheffet_RP`, `Mech_Modified_GaussMix` | GaussMix-style Tecator comparison |
+
+The NDIS Gaussian-output demos use standalone scripts and configs:
+
+| Config | Script | Dataset | Algorithm | Main purpose |
+| --- | --- | --- | --- | --- |
+| `configs/blr_demo/breast_cancer.yaml` | `scripts/run_blr_ndis_demo.py` | Wisconsin Diagnostic Breast Cancer | Bayesian logistic regression Gaussian-output algorithm | classification parameter release via the generic NDIS wrapper |
+| `configs/gpr_demo/linnerud.yaml` | `scripts/run_gpr_ndis_demo.py` | Linnerud, scalar target `Pulse` by default in this config | single-query scalar-output GPR | regression prediction release via the generic NDIS wrapper |
 
 Current output roots:
 
@@ -144,6 +179,8 @@ Current output roots:
 | `synthetic_redundant_regression.yaml` | `data/outputs/runs/synthetic_redundant_regression` |
 | `synthetic_ptr.yaml` | `data/outputs/runs/synthetic_ptr` |
 | `tecator.yaml` | `data/outputs/runs/tecator` |
+| `configs/blr_demo/breast_cancer.yaml` | `data/outputs/blr_ndis_runs` |
+| `configs/gpr_demo/linnerud.yaml` | `data/outputs/gpr_ndis_runs` |
 
 ## Implemented Components
 
@@ -159,6 +196,10 @@ Datasets:
 - `synthetic_redundant_regression`: configurable redundant-cluster synthetic
   regression generator.
 - `tecator`: OpenML Tecator with GaussMix-style split and normalization.
+- `breast_cancer`: Wisconsin Diagnostic Breast Cancer classification adapter
+  for the BLR standalone demo.
+- `linnerud`: sklearn Linnerud adapter with configurable scalar target selection
+  for the GPR standalone demo.
 
 Mechanisms:
 
@@ -173,15 +214,30 @@ Mechanisms:
 - `Blocki12_JL`: Johnson-Lindenstrauss covariance-estimation baseline from
   Blocki et al. 2012.
 
+NDIS Gaussian-output framework:
+
+- `GaussianOutputAlgorithm`: interface for algorithms that produce `(mu, Sigma)`
+  and expose an NDIS sensitivity bound as a function of covariance inflation
+  `tau`.
+- `NDISGaussianWrapper`: generic Figure-5-style wrapper that calibrates
+  `tau_star` and samples from `N(mu, Sigma + tau_star * I)`.
+- `BLRGaussianOutput`: Bayesian logistic regression Gaussian-output algorithm
+  for the breast-cancer classification demo.
+- `GPRGaussianOutput`: scalar-output, fixed-public-query Gaussian process
+  regression algorithm for the Linnerud demo.
+- `RBFKernel`: unit-amplitude RBF kernel helper for the GPR path.
+
 Tasks and metrics:
 
 - `OLSFromRelease`: solves an OLS model from private `X^T X` and `X^T y`
   releases, then reports test MSE.
 - Release metric: `rel_fro_xtx = ||X^T X - X^T X_hat||_F / ||X^T X||_F`.
+- BLR demo metric: non-private and private test accuracy/log-loss.
+- GPR demo metric: non-private and private absolute error at one public query.
 
 ## Reports
 
-Build reports from a specific run directory:
+Build RP benchmark reports from a specific run directory:
 
 ```bash
 python scripts/build_report.py \
@@ -212,11 +268,18 @@ Each report directory contains timestamped artifacts:
 - `covariance_plot_eps_vs_error_YYYYMMDD-HHMMSS.png`
 - `demo_summary_YYYYMMDD-HHMMSS.md`
 
+The NDIS Gaussian-output demos currently use compact CSV summaries under:
+
+- `reports/ndis_gaussian/blr_summary.csv`
+- `reports/ndis_gaussian/gpr_summary.csv`
+
 ## Repo Structure
 
 ```text
 rp-benchmark/
-  configs/demo/                  benchmark configs
+  configs/demo/                  RP/OLS benchmark configs
+  configs/blr_demo/              standalone BLR + NDIS demo config
+  configs/gpr_demo/              standalone GPR + NDIS demo config
   notebooks/                     optional notebook walkthroughs
   src/rpbench/                   core package
     mechanisms/                  RP mechanisms and baselines
@@ -226,6 +289,11 @@ rp-benchmark/
     reporting/                   tables, figures, summaries
     runners/                     benchmark runner
     utils/                       I/O, seeding, linear algebra
+  src/ndis_gaussian/             generic NDIS Gaussian-output wrapper package
+    calibration.py               delta upper bounds and tau* search
+    wrapper.py                   NDISGaussianWrapper
+    blr/                         BLR Gaussian-output algorithm
+    gpr/                         scalar-output GPR Gaussian-output algorithm
   scripts/                       CLI entry points and install scripts
   tests/                         smoke and release-bundle tests
   data/cache/                    generated dataset cache, ignored by git
@@ -248,3 +316,5 @@ documentation that should not be included when this benchmark repo is pushed.
 - Kaggle Bike Sharing Demand: local `bike_train.csv` supplied by the user.
 - Flight delays: nycflights13 flights CSV from the Rdatasets mirror.
 - Tecator: OpenML `name=Tecator`, `version=1`.
+- Wisconsin Diagnostic Breast Cancer: `sklearn.datasets.load_breast_cancer`.
+- Linnerud: `sklearn.datasets.load_linnerud`.
