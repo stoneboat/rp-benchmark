@@ -1,11 +1,28 @@
 # rp-benchmark
 
-`rp-benchmark` supports empirical study of privacy mechanisms for statistical
-learning. It started as a configurable benchmark for random-projection (RP)
-mechanisms and now also includes a standalone implementation of the
-NDIS-calibrated Gaussian mechanism for Gaussian-output algorithms.
+This repository is an anonymized research artifact for a paper under review at
+IEEE S&P 2027. It supports the experiments and implementations described in
+the full version of the NDIS paper while omitting author and institution
+identifiers for review.
 
-The repository currently has two complementary experiment paths:
+## Paper and Artifact Map
+
+The full paper version included with this artifact is:
+
+- [paper/ndis-paper-fullversion.pdf](paper/ndis-paper-fullversion.pdf)
+
+Use the full version for the paper-facing locations of the main results:
+
+| Paper item | Where to look |
+| --- | --- |
+| Figure 3 | RP mechanism experiment/result for the mechanism defined in Figure 1 of the paper; see the full version PDF. |
+| Table 1 | BLR experiment discussed in Appendix C; see the full version PDF and `reports/ndis_gaussian/blr_summary.csv`. |
+| Table 2 | GPR experiment discussed in Appendix C; see the full version PDF and `reports/ndis_gaussian/gpr_summary.csv`. |
+
+## Repository Functionality
+
+`rp-benchmark` supports empirical study of privacy mechanisms for statistical
+learning. The repository has two complementary experiment paths:
 
 - The original `rpbench` path: RP-style private releases of augmented regression
   data `[X | y]`, evaluated through the shared OLS benchmark runner and report
@@ -106,9 +123,12 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/ma
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 ```
 
-## Notebook walkthrough 
+## Notebook walkthroughs
 
-A step-by-step demo notebook is provided at `notebooks/test_demo.ipynb`.
+The `notebooks/` directory contains optional NDIS audit notebooks:
+
+- `notebooks/gaussian_whitebox_audit.ipynb`
+- `notebooks/gaussian_parametric_blackbox_audit.ipynb`
 
 If you registered the kernel via `scripts/local_scripts/cluster_install_bell.sh`,
 select the kernel named **Python (rpbench)** in Jupyter and run the cells
@@ -313,7 +333,8 @@ documentation that should not be included when this benchmark repo is pushed.
   `omrilev1/GaussMix` linear-regression implementation.
 - Auto MPG: UCI ML Repository via OpenML, `data_id=196`.
 - Bike Sharing: OpenML Bike Sharing Demand, `data_id=42713`.
-- Kaggle Bike Sharing Demand: local `bike_train.csv` supplied by the user.
+- Kaggle Bike Sharing Demand: local `bike_train.csv` supplied outside this
+  artifact.
 - Flight delays: nycflights13 flights CSV from the Rdatasets mirror.
 - Tecator: OpenML `name=Tecator`, `version=1`.
 - Wisconsin Diagnostic Breast Cancer: `sklearn.datasets.load_breast_cancer`.
