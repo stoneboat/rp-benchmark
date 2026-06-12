@@ -15,9 +15,9 @@ Use the full version for the paper-facing locations of the main results:
 
 | Paper item | Where to look |
 | --- | --- |
-| Figure 3 | RP mechanism experiment/result for the mechanism defined in Figure 1 of the paper; see the full version PDF. |
-| Table 1 | BLR experiment discussed in Appendix C; see the full version PDF and `reports/ndis_gaussian/blr_summary.csv`. |
-| Table 2 | GPR experiment discussed in Appendix C; see the full version PDF and `reports/ndis_gaussian/gpr_summary.csv`. |
+| Figure 3 | RP mechanism experiment/result for the mechanism defined in Figure 1 of the paper; see the folder reports/bike_sharing_kaggle and reports/tecator. |
+| Table 1 | BLR, GPR experiment discussed in Section 6.2 and Appendix C of the paper; see the full version PDF; see the folder reports/ndis_gaussian |
+| Table 2 | Auditing experiment discussed in Section 7 of the paper; see the folder notebooks. |
 
 ## Repository Functionality
 
@@ -288,10 +288,8 @@ Each report directory contains timestamped artifacts:
 - `covariance_plot_eps_vs_error_YYYYMMDD-HHMMSS.png`
 - `demo_summary_YYYYMMDD-HHMMSS.md`
 
-The NDIS Gaussian-output demos currently use compact CSV summaries under:
-
-- `reports/ndis_gaussian/blr_summary.csv`
-- `reports/ndis_gaussian/gpr_summary.csv`
+The NDIS Gaussian-output demos currently use compact CSV summaries under
+`reports/ndis_gaussian/`.
 
 ## Repo Structure
 
@@ -327,10 +325,9 @@ documentation that should not be included when this benchmark repo is pushed.
 
 ## References
 
-- NDIS RP mechanism: arXiv:2309.01243.
 - Blocki, Blum, Datta, and Sheffet (2012): arXiv:1204.2136.
-- GaussMix mechanism: The Gaussian Mixing Mechanism and the reference
-  `omrilev1/GaussMix` linear-regression implementation.
+- GaussMix mechanism: The Gaussian Mixing Mechanism and its reference
+  linear-regression implementation.
 - Auto MPG: UCI ML Repository via OpenML, `data_id=196`.
 - Bike Sharing: OpenML Bike Sharing Demand, `data_id=42713`.
 - Kaggle Bike Sharing Demand: local `bike_train.csv` supplied outside this

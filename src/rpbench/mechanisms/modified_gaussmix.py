@@ -7,8 +7,8 @@ Paper ground truth:
     regression.
 
 Implementation tie-breaker:
-  - omrilev1/GaussMix, ``utils_linear_mixing.py`` and
-    ``Code_LinearRegression.py``.
+  - Reference GaussMix linear-regression implementation files
+    ``utils_linear_mixing.py`` and ``Code_LinearRegression.py``.
 
 This module intentionally ports only the release mechanism into the benchmark's
 existing ``Mechanism -> ReleaseBundle`` abstraction. It does not port the

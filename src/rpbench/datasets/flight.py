@@ -3,8 +3,8 @@
 Source: nycflights13 flights data via the Rdatasets mirror.
   URL: https://vincentarelbundock.github.io/Rdatasets/csv/nycflights13/flights.csv
 
-This dataset is cited in arXiv:2309.01243 (Section 7.2 / Experiment 1) as
-having 2 features and 327,346 records.  Reference 19 of that paper points to
+This dataset is used in the full-version paper (Section 7.2 / Experiment 1) as
+having 2 features and 327,346 records.  The corresponding data reference points to
 https://rpubs.com/salmaeng/linear_regression ("Applying linear regression to
 study flights delay"), which uses the nycflights13 R package.
 

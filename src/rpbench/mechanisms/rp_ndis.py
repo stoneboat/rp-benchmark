@@ -1,6 +1,6 @@
 """Mech_RP — NDIS-based random projection DP mechanism.
 
-Ground truth: NDIS paper (arxiv 2309.01243), Figure 1 (MRP mechanism).
+Ground truth: full-version NDIS paper, Figure 1 (MRP mechanism).
 Privacy analysis: Lemma 4 and Proposition 4 (delta-curve as a function of
 leverage).  Utility: Theorem 4 (unbiased Gram estimator).
 
