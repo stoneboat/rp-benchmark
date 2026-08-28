@@ -9,8 +9,8 @@ from the old NDIS repo (NDIS/src/analysis/RP_privacy_analysis_advanced.py).
 The binary search (compute_leverage_upper_bound) is copied from
 NDIS/src/RP_mechanisms/optim_RP_DP.py.
 
-MechRPPTR implements the PTR-based wrapper M_RP^PTR from Figure 4 /
-Theorem 6 / Proposition 5 (Section 5.3).
+MechRPPTR implements the PTR-based wrapper M_RP^PTR from Figure 6 /
+Theorem 7 / Proposition 6 (Appendix B).
 """
 
 from __future__ import annotations
@@ -309,13 +309,13 @@ class MechRPPois(Mechanism):
 
 
 # ---------------------------------------------------------------------------
-# PTR helpers — support for MechRPPTR (Figure 4, Section 5.3)
+# PTR helpers — support for MechRPPTR (Figure 6, Appendix B)
 # ---------------------------------------------------------------------------
 
 def _gaussian_mech_delta(epsilon_T: float, l: float, tau: float) -> float:
     r"""Gaussian mechanism privacy profile for the eigenvalue test.
 
-    Implements Figure 4, Step 1:
+    Implements Figure 6, Step 1:
         δ_T(ε_T) = Φ(l²/(2τ) − ε_T·τ/l²) − e^{ε_T}·Φ(−l²/(2τ) − ε_T·τ/l²)
 
     The test adds N(0, τ²) noise to λ_min(D^T D), which has sensitivity l²
@@ -346,7 +346,7 @@ def _find_epsilon_T(
 ) -> float:
     """Binary search for smallest ε_T ≥ 0 s.t. δ_T(ε_T) ≤ delta_T.
 
-    Implements Figure 4, Step 1 (ε_T calibration).
+    Implements Figure 6, Step 1 (ε_T calibration).
     """
     if delta_T <= 0.0:
         raise ValueError("_find_epsilon_T requires delta_T > 0")
@@ -367,11 +367,11 @@ def _find_epsilon_T(
 
 
 # ---------------------------------------------------------------------------
-# MechRPPTR — PTR-based wrapper (Figure 4, Section 5.3)
+# MechRPPTR — PTR-based wrapper (Figure 6, Appendix B)
 # ---------------------------------------------------------------------------
 
 class MechRPPTR(Mechanism):
-    """PTR-based wrapper for Mech_RP (Figure 4 / Theorem 6 / Section 5.3).
+    """PTR-based wrapper for Mech_RP (Figure 6 / Theorem 7 / Appendix B).
 
     Adaptively reduces ridge regularization when λ_min(D^T D) is large,
     improving utility on well-conditioned datasets while remaining (ε,δ)-DP.
@@ -415,6 +415,7 @@ class MechRPPTR(Mechanism):
         self.delta_ptr = float(delta_ptr)
         self._calibrated = False
         self._cal: dict[str, Any] = {}
+        self._fallback: MechRP | None = None
 
     def calibrate(self, privacy_spec, public_meta: dict) -> None:
         epsilon = privacy_spec.epsilon
@@ -446,16 +447,43 @@ class MechRPPTR(Mechanism):
                 f"got {delta_r + delta_t + delta_ptr} vs {delta}"
             )
 
-        # --- Figure 4, Step 1: find epsilon_T via Gaussian mechanism bound ---
+        # --- Figure 6, Step 1: find epsilon_T via Gaussian mechanism bound ---
         # Sensitivity of λ_min(D^T D) to one-row removal is ≤ l²; noise = τ.
         epsilon_T = _find_epsilon_T(delta_t, l, tau)
-        epsilon_R = max(epsilon - epsilon_T, 0.0)
 
-        # --- Figure 4, Step 2: find p* for the PTR-side RP release ---
+        # This feasibility decision uses only public quantities.  If the test
+        # alone exceeds the target epsilon, Figure 6 returns ordinary MechRP
+        # with the full requested (epsilon, delta) budget.
+        if epsilon_T > epsilon:
+            self._fallback = MechRP(r=r)
+            self._fallback.calibrate(privacy_spec, public_meta)
+            self._cal = {
+                "mode": "fallback_rp",
+                "ptr_test_executed": False,
+                "fallback_reason": "epsilon_T > epsilon",
+                "epsilon": epsilon,
+                "delta": delta,
+                "epsilon_T": epsilon_T,
+                "delta_R": delta_r,
+                "delta_T": delta_t,
+                "delta_ptr": delta_ptr,
+                "tau": tau,
+                "r": r,
+                "d_aug": d_aug,
+                "l": l,
+                "baseline_calibration": self._fallback.diagnostics(),
+            }
+            self._calibrated = True
+            return
+
+        self._fallback = None
+        epsilon_R = epsilon - epsilon_T
+
+        # --- Figure 6, Step 2: find p* for the PTR-side RP release ---
         # Reuse existing calibration helper: δ_r^{gRP}(ε_R; p*) ≤ δ_R.
         p_star_ptr = compute_leverage_upper_bound(epsilon_R, delta_r, r)
 
-        # Baseline MRP ridge for Proposition 5 comparison uses the full budget
+        # Baseline MRP ridge for Proposition 6 comparison uses the full budget
         # (epsilon, delta), not the PTR-side split (epsilon_R, delta_R).
         p_star_rp = compute_leverage_upper_bound(epsilon, delta, r)
         lambda_rp = l ** 2 / p_star_rp
@@ -464,6 +492,8 @@ class MechRPPTR(Mechanism):
         alpha = tau * float(_norm.ppf(1.0 - delta_ptr))
 
         self._cal = {
+            "mode": "ptr",
+            "ptr_test_executed": True,
             "epsilon": epsilon,
             "delta": delta,
             "epsilon_T": epsilon_T,
@@ -485,6 +515,29 @@ class MechRPPTR(Mechanism):
 
     def release(self, train_data: np.ndarray, seed: int) -> ReleaseBundle:
         assert self._calibrated, "Must call calibrate() first"
+
+        # Figure 6's public guardrail must precede every private PTR-test
+        # operation, including the Gram eigenvalue query and test-noise draw.
+        if self._cal["mode"] == "fallback_rp":
+            assert self._fallback is not None
+            rb = self._fallback.release(train_data, seed)
+            baseline_diagnostics = dict(rb.diagnostics)
+            rb.mechanism_name = self.name
+            rb.calibration = dict(self._cal)
+            rb.diagnostics = {
+                "mode": "fallback_rp",
+                "ptr_test_executed": False,
+                "fallback_reason": self._cal["fallback_reason"],
+                "epsilon": self._cal["epsilon"],
+                "delta": self._cal["delta"],
+                "epsilon_T": self._cal["epsilon_T"],
+                "delta_T": self._cal["delta_T"],
+                "tau": self._cal["tau"],
+                "r": self._cal["r"],
+                "baseline_diagnostics": baseline_diagnostics,
+            }
+            return rb
+
         t_start = time.time()
 
         rng = np.random.RandomState(seed)
@@ -499,7 +552,7 @@ class MechRPPTR(Mechanism):
         alpha = self._cal["alpha"]
         tau = self._cal["tau"]
 
-        # --- Figure 4, Step 3: private eigenvalue lower bound ---
+        # --- Figure 6, Step 3: private eigenvalue lower bound ---
         # Compute λ_min of the raw Gram matrix D^T D.
         lambda_min_raw = float(np.linalg.eigvalsh(D.T @ D).min())
 
@@ -509,18 +562,18 @@ class MechRPPTR(Mechanism):
         # λ_lb = max(λ_min_raw + η − α, 0)
         lambda_lb = max(lambda_min_raw + eta - alpha, 0.0)
 
-        # --- Figure 4, Step 4: PTR ridge ---
+        # --- Figure 6, Step 4: PTR ridge ---
         # λ_ptr = max(l²/p*_ptr − λ_lb, 0)
         lambda_ptr = max(l ** 2 / p_star_ptr - lambda_lb, 0.0)
         sigma_ptr = float(np.sqrt(lambda_ptr))
 
-        # Proposition 5 compares λ_ptr against the baseline Mech_RP ridge
+        # Proposition 6 compares λ_ptr against the baseline Mech_RP ridge
         # calibrated under the full (epsilon, delta) budget.
-        prop5_threshold = alpha + (l ** 2 / p_star_ptr) - lambda_rp
-        prop5_condition_met = bool(lambda_min_raw > prop5_threshold)
+        prop6_threshold = alpha + (l ** 2 / p_star_ptr) - lambda_rp
+        prop6_condition_met = bool(lambda_min_raw > prop6_threshold)
         lambda_ptr_lt_lambda_rp = bool(lambda_ptr < lambda_rp)
 
-        # --- Figure 4, Step 5: Gaussian RP on augmented database ---
+        # --- Figure 6, Step 5: Gaussian RP on augmented database ---
         # D̄ = [D; √λ_ptr · I_{d_aug}]
         # M̃ = D̄^T G = D^T G_1 + σ_ptr · G_2   (same formula as MechRP)
         G1 = rng.standard_normal((n, r))       # (n, r)
@@ -544,6 +597,8 @@ class MechRPPTR(Mechanism):
             sketch_matrix=M_tilde,
             calibration=dict(self._cal),
             diagnostics={
+                "mode": "ptr",
+                "ptr_test_executed": True,
                 "epsilon": self._cal["epsilon"],
                 "delta": self._cal["delta"],
                 "epsilon_T": self._cal["epsilon_T"],
@@ -561,8 +616,8 @@ class MechRPPTR(Mechanism):
                 "lambda_lb": lambda_lb,
                 "lambda_ptr": lambda_ptr,
                 "lambda_rp": lambda_rp,
-                "prop5_threshold": prop5_threshold,
-                "prop5_condition_met": prop5_condition_met,
+                "prop6_threshold": prop6_threshold,
+                "prop6_condition_met": prop6_condition_met,
                 "lambda_ptr_lt_lambda_rp": lambda_ptr_lt_lambda_rp,
             },
             runtime_sec=runtime,

@@ -86,6 +86,8 @@ def test_mini_run_with_pois_wrapper():
 
 def test_mini_run_with_ptr_wrapper():
     """Run the PTR-based RP wrapper end-to-end."""
+    import numpy as np
+
     from rpbench.config import DemoConfig, SplitSpec, PreprocessSpec, SeedBatchSpec
     from rpbench.runners.run_demo import run_demo
 
@@ -98,7 +100,7 @@ def test_mini_run_with_ptr_wrapper():
         delta_rule="1e-6",
         seed_batch=SeedBatchSpec(mode="fixed", base_seed=0, count=1),
         split=SplitSpec(train_fraction=0.8, seed=42),
-        preprocess=PreprocessSpec(),
+        preprocess=PreprocessSpec(clip_x_bound=3.0, clip_y_bound=1.0),
         mech_params={"Mech_RP_PTR": {
             "r": 24,
             "tau": 0.5,
@@ -117,9 +119,11 @@ def test_mini_run_with_ptr_wrapper():
     assert "downstream_metrics" in rec
     assert "release_metrics" in rec
     diag = rec["diagnostics"]
-    assert "lambda_ptr" in diag
-    assert "epsilon_T" in diag
-    assert diag["lambda_ptr"] >= 0.0
+    assert diag["mode"] == "fallback_rp"
+    np.testing.assert_allclose(diag["epsilon_T"], 298.9320644028485, rtol=0.0, atol=1e-8)
+    assert diag["ptr_test_executed"] is False
+    for key in ("lambda_min_raw", "eta", "lambda_lb", "lambda_ptr"):
+        assert key not in diag
 
 
 def test_mini_run_with_sheffet_rp():

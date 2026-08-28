@@ -36,10 +36,12 @@ class OLSFromRelease(Task):
         assert xtx is not None
         assert xty is not None
 
-        if (
-            release_bundle.mechanism_name in {"Mech_RP", "Mech_RP_Pois"}
-            and release_bundle.sketch_matrix is not None
-        ):
+        is_rp_sketch = release_bundle.mechanism_name in {"Mech_RP", "Mech_RP_Pois"}
+        is_ptr_fallback = (
+            release_bundle.mechanism_name == "Mech_RP_PTR"
+            and release_bundle.diagnostics.get("mode") == "fallback_rp"
+        )
+        if (is_rp_sketch or is_ptr_fallback) and release_bundle.sketch_matrix is not None:
             m_tilde = release_bundle.sketch_matrix
             d = xtx.shape[0]
             m_x = m_tilde[:d, :]

@@ -28,6 +28,16 @@ def _make_data(n=100, d=5, seed=0):
     return A, pub_meta
 
 
+def _make_autompg_bounded_data(n=100, d=5, seed=0):
+    """Synthetic augmented data satisfying the Auto MPG public row bound."""
+    A, _ = _make_data(n=n, d=d, seed=seed)
+    l = float(np.sqrt(3.0 ** 2 + 1.0 ** 2))
+    max_norm = float(np.max(np.linalg.norm(A, axis=1)))
+    A = A * min(1.0, 0.9 * l / max_norm)
+    pub_meta = {"n": n, "d": d, "d_aug": d + 1, "l": l}
+    return A, pub_meta
+
+
 def test_mech_rp_release():
     A, meta = _make_data()
     mech = MechRP(r=24)
@@ -237,13 +247,34 @@ def test_normalized_covariance_metric_debiases_gaussmix_sketch():
     assert relative_frobenius_xtx_normalized(xtx_true, rb) == 0.0
 
 
-def test_mech_rp_ptr_release():
-    A, meta = _make_data()
-    delta = 1e-4
-    mech = MechRPPTR(r=24, tau=0.5, delta_r=5e-5, delta_t=3e-5, delta_ptr=2e-5)
+def test_mech_rp_ptr_infeasible_test_falls_back_to_baseline(monkeypatch):
+    A, meta = _make_autompg_bounded_data()
+    delta = 1e-6
     ps = PrivacySpec(epsilon=2.0, delta=delta)
-    mech.calibrate(ps, meta)
-    rb = mech.release(A, seed=42)
+
+    ptr = MechRPPTR(r=24, tau=0.5, delta_r=5e-7, delta_t=3e-7, delta_ptr=2e-7)
+    ptr.calibrate(ps, meta)
+    cal = ptr.diagnostics()
+
+    np.testing.assert_allclose(cal["epsilon_T"], 298.9320644028485, rtol=0.0, atol=1e-8)
+    assert cal["epsilon_T"] > ps.epsilon
+    assert cal["mode"] == "fallback_rp"
+    assert cal["ptr_test_executed"] is False
+    assert cal["fallback_reason"] == "epsilon_T > epsilon"
+    assert "epsilon_R" not in cal
+    assert cal["baseline_calibration"]["epsilon"] == ps.epsilon
+    assert cal["baseline_calibration"]["delta"] == ps.delta
+    assert cal["baseline_calibration"]["r"] == ptr.r
+
+    baseline = MechRP(r=ptr.r)
+    baseline.calibrate(ps, meta)
+
+    def fail_private_eigenvalue_query(*args, **kwargs):
+        raise AssertionError("fallback must not execute the private eigenvalue test")
+
+    monkeypatch.setattr(np.linalg, "eigvalsh", fail_private_eigenvalue_query)
+    rb = ptr.release(A, seed=42)
+    rb_baseline = baseline.release(A, seed=42)
 
     assert isinstance(rb, ReleaseBundle)
     assert rb.mechanism_name == "Mech_RP_PTR"
@@ -255,11 +286,54 @@ def test_mech_rp_ptr_release():
     assert rb.runtime_sec >= 0
     assert rb.sketch_matrix is not None
     assert rb.sketch_matrix.shape == (meta["d_aug"], 24)
-    # Required diagnostics fields
+    assert rb.diagnostics["mode"] == "fallback_rp"
+    assert rb.diagnostics["ptr_test_executed"] is False
+    for key in ("lambda_min_raw", "eta", "lambda_lb", "lambda_ptr"):
+        assert key not in rb.diagnostics
+
+    np.testing.assert_array_equal(rb.sketch_matrix, rb_baseline.sketch_matrix)
+    np.testing.assert_array_equal(rb.xtx_hat, rb_baseline.xtx_hat)
+    np.testing.assert_array_equal(rb.xty_hat, rb_baseline.xty_hat)
+
+    task = OLSFromRelease()
+    beta_ptr = task.fit_from_release(rb, train_meta=meta)
+    beta_baseline = task.fit_from_release(rb_baseline, train_meta=meta)
+    np.testing.assert_array_equal(beta_ptr, beta_baseline)
+    assert task.evaluate(beta_ptr, A[:, :-1], A[:, -1]) == task.evaluate(
+        beta_baseline, A[:, :-1], A[:, -1]
+    )
+
+
+def test_mech_rp_ptr_feasible_release_uses_exact_remaining_budget():
+    A, meta = _make_autompg_bounded_data()
+    delta = 1e-6
+    mech = MechRPPTR(r=24, tau=30.0, delta_r=5e-7, delta_t=3e-7, delta_ptr=2e-7)
+    ps = PrivacySpec(epsilon=2.0, delta=delta)
+    mech.calibrate(ps, meta)
+
+    cal = mech.diagnostics()
+    assert cal["mode"] == "ptr"
+    assert cal["ptr_test_executed"] is True
+    assert cal["epsilon_T"] <= ps.epsilon
+    assert cal["epsilon_R"] == ps.epsilon - cal["epsilon_T"]
+    assert cal["epsilon_R"] > 0.0
+    np.testing.assert_allclose(
+        cal["delta_R"] + cal["delta_T"] + cal["delta_ptr"],
+        delta,
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+    rb = mech.release(A, seed=42)
+    assert isinstance(rb, ReleaseBundle)
+    assert rb.mechanism_name == "Mech_RP_PTR"
+    assert rb.diagnostics["mode"] == "ptr"
+    assert rb.diagnostics["ptr_test_executed"] is True
+    # Required feasible-PTR diagnostics fields.
     for key in ("epsilon_T", "epsilon_R", "delta_R", "delta_T", "delta_ptr",
                 "tau", "p_star", "p_star_ptr", "p_star_rp", "lambda_min_raw",
                 "alpha", "eta", "lambda_lb", "lambda_ptr", "lambda_rp",
-                "prop5_threshold", "prop5_condition_met", "lambda_ptr_lt_lambda_rp"):
+                "prop6_threshold", "prop6_condition_met", "lambda_ptr_lt_lambda_rp"):
         assert key in rb.diagnostics, f"missing diagnostics key: {key}"
     # Backward-compatible alias and baseline-vs-PTR distinction.
     assert rb.diagnostics["p_star"] == rb.diagnostics["p_star_ptr"]
@@ -267,20 +341,20 @@ def test_mech_rp_ptr_release():
     # lambda_ptr >= 0; under the corrected baseline comparison it may be either
     # smaller or larger than the true full-budget baseline ridge.
     assert rb.diagnostics["lambda_ptr"] >= 0.0
-    # Proposition 5 diagnostic now reflects the stated raw-eigenvalue inequality.
+    # Proposition 6 diagnostic reflects the stated raw-eigenvalue inequality.
     lhs = rb.diagnostics["lambda_min_raw"]
-    rhs = rb.diagnostics["prop5_threshold"]
-    assert rb.diagnostics["prop5_condition_met"] == bool(lhs > rhs)
+    rhs = rb.diagnostics["prop6_threshold"]
+    assert rb.diagnostics["prop6_condition_met"] == bool(lhs > rhs)
     assert rb.diagnostics["lambda_ptr_lt_lambda_rp"] == bool(
         rb.diagnostics["lambda_ptr"] < rb.diagnostics["lambda_rp"]
     )
 
 
 def test_mech_rp_ptr_deterministic():
-    A, meta = _make_data()
-    delta = 1e-4
-    mech1 = MechRPPTR(r=24, tau=0.5, delta_r=5e-5, delta_t=3e-5, delta_ptr=2e-5)
-    mech2 = MechRPPTR(r=24, tau=0.5, delta_r=5e-5, delta_t=3e-5, delta_ptr=2e-5)
+    A, meta = _make_autompg_bounded_data()
+    delta = 1e-6
+    mech1 = MechRPPTR(r=24, tau=30.0, delta_r=5e-7, delta_t=3e-7, delta_ptr=2e-7)
+    mech2 = MechRPPTR(r=24, tau=30.0, delta_r=5e-7, delta_t=3e-7, delta_ptr=2e-7)
     ps = PrivacySpec(epsilon=2.0, delta=delta)
     mech1.calibrate(ps, meta)
     mech2.calibrate(ps, meta)

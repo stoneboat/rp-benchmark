@@ -2,7 +2,7 @@
 #
 # PTR (Propose-Test-Release) improves utility on well-conditioned datasets by
 # adaptively lowering the ridge level when lambda_min(D^T D) is large.
-# Ground truth: NDIS paper Figure 4 / Theorem 6 / Proposition 5.
+# Ground truth: NDIS paper Figure 6 / Theorem 7 / Proposition 6 / Appendix B.
 #
 # delta_rule: 1e-6 → delta = 1e-6 for all runs.
 # The three PTR delta parameters MUST sum to exactly delta:
