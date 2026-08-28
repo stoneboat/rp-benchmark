@@ -18,9 +18,16 @@ NOTE: tau* is a covariance (units of variance), NOT a standard deviation.
 
 from __future__ import annotations
 
+import math
+from typing import Any
+
 import numpy as np
 
-from ndis_gaussian.calibration import find_tau_star
+from ndis_gaussian.calibration import (
+    find_tau_star,
+    find_tau_star_scalar_gpr,
+    scalar_gpr_privacy_certificate,
+)
 from ndis_gaussian.interfaces import GaussianOutputAlgorithm
 from ndis_gaussian.types import GaussianOutput, NDISSensitivity, WrappedRelease
 
@@ -44,6 +51,8 @@ class NDISGaussianWrapper:
         Convenience property; tau_star is the primary representation.
     """
 
+    calibration_mode = "generic"
+
     def __init__(self) -> None:
         self._tau_star: float | None = None
         self._algorithm: GaussianOutputAlgorithm | None = None
@@ -51,6 +60,9 @@ class NDISGaussianWrapper:
         self._epsilon: float | None = None
         self._delta: float | None = None
         self._sensitivity_at_tau_star: NDISSensitivity | None = None
+        self._calibration_diagnostics: dict[str, Any] = {
+            "calibration_mode": self.calibration_mode,
+        }
 
     # ------------------------------------------------------------------
     # Calibration
@@ -98,7 +110,7 @@ class NDISGaussianWrapper:
         if not (0.0 < delta < 1.0):
             raise ValueError(f"delta must be in (0, 1), got {delta}")
 
-        tau_star = find_tau_star(
+        tau_star = self._find_calibrated_tau(
             epsilon=epsilon,
             delta=delta,
             algorithm=algorithm,
@@ -113,6 +125,55 @@ class NDISGaussianWrapper:
         self._epsilon = epsilon
         self._delta = delta
         self._sensitivity_at_tau_star = algorithm.sensitivity(tau_star, public_meta)
+        self._calibration_diagnostics = self._build_calibration_diagnostics(
+            algorithm=algorithm,
+            epsilon=epsilon,
+            delta=delta,
+            public_meta=public_meta,
+            tau_lo=tau_lo,
+            tol=tol,
+        )
+
+    def _find_calibrated_tau(
+        self,
+        *,
+        epsilon: float,
+        delta: float,
+        algorithm: GaussianOutputAlgorithm,
+        public_meta: dict,
+        tau_lo: float,
+        tau_hi_init: float,
+        tol: float,
+    ) -> float:
+        """Calibration hook used by specialized wrapper subclasses."""
+        return find_tau_star(
+            epsilon=epsilon,
+            delta=delta,
+            algorithm=algorithm,
+            public_meta=public_meta,
+            tau_lo=tau_lo,
+            tau_hi_init=tau_hi_init,
+            tol=tol,
+        )
+
+    def _build_calibration_diagnostics(
+        self,
+        *,
+        algorithm: GaussianOutputAlgorithm,
+        epsilon: float,
+        delta: float,
+        public_meta: dict,
+        tau_lo: float,
+        tol: float,
+    ) -> dict[str, Any]:
+        """Return stable metadata describing the selected calibration path."""
+        return {
+            "calibration_mode": self.calibration_mode,
+            "epsilon": epsilon,
+            "delta_target": delta,
+            "tau_star": self.tau_star,
+            "sigma_std": self.sigma_std,
+        }
 
     # ------------------------------------------------------------------
     # Release
@@ -166,6 +227,7 @@ class NDISGaussianWrapper:
             tau_star=tau_star,
             sensitivity=self._sensitivity_at_tau_star,  # type: ignore[arg-type]
             diagnostics={
+                **self._calibration_diagnostics,
                 "epsilon": self._epsilon,
                 "delta": self._delta,
                 "seed": seed,
@@ -191,3 +253,98 @@ class NDISGaussianWrapper:
         representation — the noise matrix is tau_star * I, not sigma_std^2 * I.
         """
         return float(np.sqrt(self.tau_star))
+
+    @property
+    def calibration_diagnostics(self) -> dict[str, Any]:
+        """Calibration mode, certificate, and numerical diagnostics."""
+        return dict(self._calibration_diagnostics)
+
+
+class ScalarGPRExactNDISWrapper(NDISGaussianWrapper):
+    """NDIS wrapper specialized to exact scalar GPR covariance divergence.
+
+    Release sampling is inherited unchanged. Only the calibration predicate is
+    specialized, so :class:`NDISGaussianWrapper` remains the generic baseline.
+    """
+
+    calibration_mode = "scalar_gpr_exact"
+
+    def _find_calibrated_tau(
+        self,
+        *,
+        epsilon: float,
+        delta: float,
+        algorithm: GaussianOutputAlgorithm,
+        public_meta: dict,
+        tau_lo: float,
+        tau_hi_init: float,
+        tol: float,
+    ) -> float:
+        return find_tau_star_scalar_gpr(
+            epsilon=epsilon,
+            delta=delta,
+            algorithm=algorithm,
+            public_meta=public_meta,
+            tau_lo=tau_lo,
+            tau_hi_init=tau_hi_init,
+            tol=tol,
+        )
+
+    def _build_calibration_diagnostics(
+        self,
+        *,
+        algorithm: GaussianOutputAlgorithm,
+        epsilon: float,
+        delta: float,
+        public_meta: dict,
+        tau_lo: float,
+        tol: float,
+    ) -> dict[str, Any]:
+        if int(public_meta.get("d", 0)) != 1:
+            raise ValueError(
+                "scalar_gpr_exact calibration requires scalar output "
+                "(public_meta['d'] == 1)"
+            )
+
+        sensitivity = algorithm.sensitivity(self.tau_star, public_meta)
+        certificate = dict(
+            scalar_gpr_privacy_certificate(
+                epsilon,
+                sensitivity.Delta,
+                sensitivity.rho_inf,
+            )
+        )
+        diagnostics = super()._build_calibration_diagnostics(
+            algorithm=algorithm,
+            epsilon=epsilon,
+            delta=delta,
+            public_meta=public_meta,
+            tau_lo=tau_lo,
+            tol=tol,
+        )
+        diagnostics.update({
+            "Delta": sensitivity.Delta,
+            "rho_inf": sensitivity.rho_inf,
+            "nu": sensitivity.nu,
+            "variance_ratio": math.exp(sensitivity.rho_inf),
+            "envelope_maximization": "endpoint_by_monotonicity",
+            **certificate,
+        })
+
+        # The returned tau_star is the feasible side of a binary-search bracket.
+        # Checking one tolerance below it records near-minimality without
+        # changing the release or the certified value at tau_star.
+        tau_below = max(tau_lo, self.tau_star - tol)
+        if tau_below < self.tau_star:
+            sensitivity_below = algorithm.sensitivity(tau_below, public_meta)
+            certificate_below = scalar_gpr_privacy_certificate(
+                epsilon,
+                sensitivity_below.Delta,
+                sensitivity_below.rho_inf,
+            )
+            diagnostics.update({
+                "tau_below": tau_below,
+                "delta_total_below": certificate_below["delta_total"],
+            })
+
+        return diagnostics

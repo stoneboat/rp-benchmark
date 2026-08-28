@@ -286,6 +286,343 @@ class TestCalibrationOverflowGuard:
 
 
 # ---------------------------------------------------------------------------
+# Specialized exact-NDIS calibration for scalar GPR
+# ---------------------------------------------------------------------------
+
+class TestScalarExactNDISCalibration:
+    """Focused regressions for the application-specific scalar GPR path."""
+
+    @staticmethod
+    def _linnerud_gpr_and_meta():
+        """Return the public sensitivity setup used by the Section 6 demo."""
+        from ndis_gaussian.gpr.model import GPRGaussianOutput, RBFKernel
+
+        public_meta = {
+            "n": 16,
+            "d": 1,
+            "B": 0.5,
+            "l": 1.0,
+            "sigma_n2": 250.0,
+        }
+        gpr = GPRGaussianOutput(
+            x_star=np.zeros(3),
+            kernel=RBFKernel(5.0),
+            sigma_n2=250.0,
+            B_bound=0.5,
+            l_bound=1.0,
+        )
+        return gpr, public_meta
+
+    def test_scalar_exact_covariance_diagnostic(self):
+        """Reproduce the hard-direction diagnostic that exposed the old cutoff."""
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        value = _delta_cov_scalar_exact(epsilon=1.0, ell=1.0)
+        assert value == pytest.approx(
+            0.10655957800717819,
+            rel=5e-13,
+            abs=5e-15,
+        )
+        # In particular, epsilon >= ell/2 does not make the hard direction zero.
+        assert value > 0.0
+
+    def test_scalar_exact_covariance_is_numerically_conservative(self):
+        """Known high-precision values must not be rounded downward."""
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        references = [
+            (0.0, 0.1, 0.0241920327600449687895901235841147),
+            (0.1, 0.5, 0.0974754302909317833718539134181214),
+            (1.0, 1.0, 0.106559578007178159870503715334422),
+            (2.0, 0.2, 0.00000232161788974197523928831295655),
+            (4.0, 2.0, 0.174219752988084658452050060431961),
+        ]
+        for epsilon, ell, high_precision_value in references:
+            assert _delta_cov_scalar_exact(epsilon, ell) >= high_precision_value
+
+    @pytest.mark.parametrize("epsilon", [0.0, 0.1, 1.0, 10.0, 710.0])
+    def test_scalar_exact_covariance_identical(self, epsilon):
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        assert _delta_cov_scalar_exact(epsilon=epsilon, ell=0.0) == 0.0
+
+    @pytest.mark.parametrize(
+        ("epsilon", "ell"),
+        [(0.0, 0.1), (0.1, 0.5), (1.0, 1.0), (2.0, 0.2), (4.0, 2.0)],
+    )
+    def test_scalar_exact_covariance_matches_density_quadrature(
+        self, epsilon, ell
+    ):
+        """Compare the tail formula with direct Gaussian-density integration."""
+        from scipy.integrate import quad
+        from scipy.stats import norm
+
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        tau = math.exp(ell)
+        # The likelihood-ratio event in the original x coordinate is
+        # |x| >= x_cut.  Integrating densities is independent of the helper's
+        # chi-square/Gaussian-tail subtraction.
+        x_cut = math.sqrt((ell + 2.0 * epsilon) / (-math.expm1(-ell)))
+
+        def _positive_density_difference(x):
+            return (
+                norm.pdf(x, scale=math.sqrt(tau))
+                - math.exp(epsilon) * norm.pdf(x)
+            )
+
+        one_tail, integration_error = quad(
+            _positive_density_difference,
+            x_cut,
+            math.inf,
+            epsabs=1e-14,
+            epsrel=1e-12,
+            limit=300,
+        )
+        direct = 2.0 * one_tail
+        assert 2.0 * integration_error < 5e-13
+        assert _delta_cov_scalar_exact(epsilon, ell) == pytest.approx(
+            direct,
+            rel=2e-11,
+            abs=2e-13,
+        )
+
+    @pytest.mark.parametrize(
+        ("epsilon", "ell"),
+        [(0.0, 0.1), (0.1, 0.5), (1.0, 1.0), (2.0, 0.2), (4.0, 2.0)],
+    )
+    def test_scalar_exact_covariance_is_bounded_by_generic(self, epsilon, ell):
+        from ndis_gaussian.calibration import (
+            _delta_cov_scalar_exact,
+            delta_bar_cov,
+        )
+
+        exact = _delta_cov_scalar_exact(epsilon, ell)
+        generic = delta_bar_cov(epsilon, rho_inf=ell, nu=ell, d=1)
+        assert exact <= generic + 1e-12
+        if epsilon == 1.0 and ell == 1.0:
+            assert generic == pytest.approx(0.9099902959890521, abs=5e-8)
+
+    def test_scalar_exact_covariance_envelope_endpoint_is_worst_case(self):
+        """Numerically exercise the proved monotonicity over broad scalar grids."""
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        for epsilon in [0.0, 0.1, 1.0, 4.0]:
+            for rho_inf in [1e-8, 1e-4, 0.1, 1.0, 5.0, 20.0]:
+                ell_grid = np.linspace(0.0, rho_inf, 201)
+                values = np.array(
+                    [_delta_cov_scalar_exact(epsilon, ell) for ell in ell_grid]
+                )
+                assert np.all(np.diff(values) >= -2e-14)
+                assert values.max() == pytest.approx(
+                    _delta_cov_scalar_exact(epsilon, rho_inf),
+                    rel=2e-12,
+                    abs=2e-15,
+                )
+
+    def test_scalar_exact_hard_direction_dominates_reverse(self):
+        """Exercise covariance-order asymmetry for the scalar variance pair."""
+        from scipy.stats import norm
+
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        for ell in [1e-4, 0.1, 1.0, 5.0, 20.0]:
+            tau = math.exp(ell)
+            for epsilon in np.linspace(0.0, ell, 21):
+                if 2.0 * epsilon >= ell:
+                    reverse = 0.0
+                else:
+                    cutoff_sq = tau * (ell - 2.0 * epsilon) / (tau - 1.0)
+                    reverse = (
+                        2.0 * norm.cdf(math.sqrt(cutoff_sq))
+                        - 1.0
+                        - math.exp(epsilon)
+                        * (
+                            2.0 * norm.cdf(math.sqrt(cutoff_sq / tau))
+                            - 1.0
+                        )
+                    )
+                hard = _delta_cov_scalar_exact(epsilon, ell)
+                assert reverse <= hard + 1e-14
+
+    def test_scalar_exact_lc_no_worse_than_generic_same_order(self):
+        """Replace only covariance while holding covariance-first composition fixed."""
+        from scipy.optimize import minimize_scalar
+
+        from ndis_gaussian.calibration import (
+            _delta_cov_scalar_exact,
+            delta_bar_LC,
+            delta_bar_LC_scalar_gpr,
+            delta_bar_cov,
+            delta_bar_mean,
+        )
+
+        gpr, public_meta = self._linnerud_gpr_and_meta()
+        epsilon = 1.0
+        for tau in [1.0, 4.0, 8.0]:
+            sens = gpr.sensitivity(tau, public_meta)
+
+            def _specialized_at_split(epsilon_cov):
+                return (
+                    _delta_cov_scalar_exact(epsilon_cov, sens.rho_inf)
+                    + math.exp(epsilon_cov)
+                    * delta_bar_mean(epsilon - epsilon_cov, sens.Delta)
+                )
+
+            def _generic_covariance_first_at_split(epsilon_cov):
+                return (
+                    delta_bar_cov(
+                        epsilon_cov,
+                        rho_inf=sens.rho_inf,
+                        nu=sens.rho_inf,
+                        d=1,
+                    )
+                    + math.exp(epsilon_cov)
+                    * delta_bar_mean(epsilon - epsilon_cov, sens.Delta)
+                )
+
+            # Pointwise comparison is the rigorous substitution argument; it
+            # avoids mixing the covariance-first rule with the repository's
+            # historical mean-first generic implementation.
+            for epsilon_cov in np.linspace(0.0, epsilon, 11):
+                assert _specialized_at_split(epsilon_cov) <= (
+                    _generic_covariance_first_at_split(epsilon_cov) + 1e-12
+                )
+
+            generic_result = minimize_scalar(
+                _generic_covariance_first_at_split,
+                bounds=(0.0, epsilon),
+                method="bounded",
+                options={"xatol": 1e-9},
+            )
+            generic_covariance_first = min(
+                float(generic_result.fun),
+                _generic_covariance_first_at_split(0.0),
+                _generic_covariance_first_at_split(epsilon),
+            )
+            specialized = delta_bar_LC_scalar_gpr(
+                epsilon, sens.Delta, sens.rho_inf
+            )
+            assert specialized <= generic_covariance_first + 5e-8
+
+            # Also preserve the literal requested comparison with the existing
+            # generic wrapper, whose composition order is mean-first.
+            generic_existing = delta_bar_LC(
+                epsilon,
+                sens.Delta,
+                sens.rho_inf,
+                sens.nu,
+                d=1,
+            )
+            assert specialized <= generic_existing + 5e-8
+
+    def test_scalar_exact_gpr_calibration_certifies_and_is_near_minimal(self):
+        from ndis_gaussian.calibration import (
+            delta_bar_LC_scalar_gpr,
+            find_tau_star_scalar_gpr,
+            scalar_gpr_privacy_certificate,
+        )
+        from ndis_gaussian.wrapper import ScalarGPRExactNDISWrapper
+
+        gpr, public_meta = self._linnerud_gpr_and_meta()
+        epsilon, target_delta = 1.0, 1e-5
+        search_tol = 1e-6
+        tau_star = find_tau_star_scalar_gpr(
+            epsilon=epsilon,
+            delta=target_delta,
+            algorithm=gpr,
+            public_meta=public_meta,
+            tol=search_tol,
+        )
+        assert tau_star == pytest.approx(8.647640513419423, abs=2e-6)
+
+        sensitivity = gpr.sensitivity(tau_star, public_meta)
+        certificate = scalar_gpr_privacy_certificate(
+            epsilon,
+            sensitivity.Delta,
+            sensitivity.rho_inf,
+        )
+        assert certificate["epsilon_cov"] + certificate["epsilon_mean"] \
+            == pytest.approx(epsilon, abs=1e-10)
+        assert certificate["epsilon_cov"] == pytest.approx(
+            0.8284878615473259,
+            abs=2e-5,
+        )
+        assert certificate["delta_mean_contribution"] == pytest.approx(
+            math.exp(certificate["epsilon_cov"])
+            * certificate["delta_mean_raw"],
+            rel=2e-12,
+            abs=1e-15,
+        )
+        assert certificate["delta_total"] == pytest.approx(
+            certificate["delta_covariance"]
+            + certificate["delta_mean_contribution"],
+            rel=2e-12,
+            abs=1e-15,
+        )
+        assert certificate["delta_total"] <= target_delta
+
+        # tau_star is the passing (upper) side of a binary-search interval.
+        # One search tolerance below it must still fail the predicate.
+        tau_below = tau_star - search_tol
+        sensitivity_below = gpr.sensitivity(tau_below, public_meta)
+        assert delta_bar_LC_scalar_gpr(
+            epsilon,
+            sensitivity_below.Delta,
+            sensitivity_below.rho_inf,
+        ) > target_delta
+
+        wrapper = ScalarGPRExactNDISWrapper()
+        wrapper.calibrate(
+            gpr,
+            epsilon=epsilon,
+            delta=target_delta,
+            public_meta=public_meta,
+            tol=search_tol,
+        )
+        assert wrapper.tau_star == pytest.approx(tau_star, abs=search_tol)
+        assert wrapper.sigma_std == pytest.approx(math.sqrt(wrapper.tau_star))
+        assert wrapper.calibration_mode == "scalar_gpr_exact"
+        assert wrapper.calibration_diagnostics["delta_total"] <= target_delta
+
+    def test_scalar_exact_covariance_extreme_parameters_are_finite(self):
+        from scipy.stats import norm
+
+        from ndis_gaussian.calibration import _delta_cov_scalar_exact
+
+        for epsilon in [0.0, 1.0, 50.0, 710.0]:
+            for ell in [1e-12, 1e-8, 0.1, 1.0, 20.0, 800.0]:
+                value = _delta_cov_scalar_exact(epsilon, ell)
+                assert math.isfinite(value)
+                assert 0.0 <= value <= 1.0
+
+        near_zero = _delta_cov_scalar_exact(epsilon=0.0, ell=1e-8)
+        assert near_zero / 1e-8 == pytest.approx(norm.pdf(1.0), rel=2e-6)
+
+    def test_scalar_exact_stable_mean_and_large_epsilon_certificate(self):
+        from ndis_gaussian.calibration import (
+            _delta_mean_scalar_stable_upper,
+            scalar_gpr_privacy_certificate,
+        )
+
+        # 100-digit reference at the production split/sensitivity.
+        mean_upper = _delta_mean_scalar_stable_upper(
+            0.17151213844016522,
+            0.04301413337968837,
+        )
+        assert mean_upper >= 3.5408902523682561e-7
+
+        for epsilon in [710.0, 1000.0]:
+            certificate = scalar_gpr_privacy_certificate(
+                epsilon,
+                Delta=0.1,
+                rho_inf=0.1,
+            )
+            assert math.isfinite(certificate["delta_total"])
+            assert 0.0 <= certificate["delta_total"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
 # NDISGaussianWrapper + GPR
 # ---------------------------------------------------------------------------
 

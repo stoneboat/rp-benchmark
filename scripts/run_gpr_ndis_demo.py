@@ -8,7 +8,7 @@ Pipeline:
   1. Load the Linnerud scalar-target regression demo dataset.
   2. Choose a fixed public query point x_★ from the test split.
   3. Fit GPRGaussianOutput (Definition 8) → scalar (μ_★, Σ_★).
-  4. Calibrate NDISGaussianWrapper → τ* (binary search, Proposition 8).
+  4. Calibrate the selected generic or scalar-exact NDIS wrapper → τ*.
   5. Release θ_tilde ~ N(μ_★, Σ_★ + τ*) for multiple seeds.
   6. Compare non-private prediction, private release, and true label y_★.
   7. Save per-run records to JSONL.
@@ -23,6 +23,8 @@ Usage
   python scripts/run_gpr_ndis_demo.py --config configs/gpr_demo/linnerud.yaml
   python scripts/run_gpr_ndis_demo.py --config configs/gpr_demo/linnerud.yaml \\
       --output-root data/outputs/gpr_ndis_runs
+  python scripts/run_gpr_ndis_demo.py \\
+      --config configs/gpr_demo/linnerud_scalar_exact_legacy_seeds.yaml
 
 Privacy-utility note
 --------------------
@@ -59,6 +61,7 @@ from ndis_gaussian import (
     GPRGaussianOutput,
     NDISGaussianWrapper,
     RBFKernel,
+    ScalarGPRExactNDISWrapper,
 )
 
 
@@ -130,9 +133,15 @@ def _run_private_release(
     mu_star = float(gaussian_output.mu[0])
     Sigma_star = float(gaussian_output.Sigma[0, 0])
     sens = release.sensitivity
+    calibration_mode = wrapper.calibration_mode
+    mechanism_name = (
+        "GPR_NDIS_SCALAR_EXACT"
+        if calibration_mode == "scalar_gpr_exact"
+        else "GPR_NDIS"
+    )
 
     return {
-        "mechanism": "GPR_NDIS",
+        "mechanism": mechanism_name,
         "dataset": dataset_name,
         "x_star_index": x_star_index,
         "epsilon": epsilon,
@@ -142,6 +151,8 @@ def _run_private_release(
         "privacy": {
             "tau_star": wrapper.tau_star,
             "sigma_std": wrapper.sigma_std,
+            "calibration_mode": calibration_mode,
+            "calibration_diagnostics": wrapper.calibration_diagnostics,
         },
         "sensitivity": {
             "Delta": sens.Delta,
@@ -211,10 +222,31 @@ def main() -> None:
         "--output-root", type=str, default=None,
         help="Override output_root from config",
     )
+    parser.add_argument(
+        "--calibration-mode",
+        choices=("generic", "scalar_gpr_exact"),
+        default=None,
+        help=(
+            "Override config calibration_mode. Defaults to 'generic' when the "
+            "config omits this field."
+        ),
+    )
     args = parser.parse_args()
 
     cfg = _load_yaml(args.config)
     output_root = args.output_root or cfg.get("output_root", "data/outputs/gpr_ndis_runs")
+    calibration_mode = args.calibration_mode or str(
+        cfg.get("calibration_mode", "generic")
+    )
+    wrapper_classes = {
+        "generic": NDISGaussianWrapper,
+        "scalar_gpr_exact": ScalarGPRExactNDISWrapper,
+    }
+    if calibration_mode not in wrapper_classes:
+        raise ValueError(
+            f"Unsupported calibration_mode {calibration_mode!r}; expected one of "
+            f"{sorted(wrapper_classes)}"
+        )
 
     epsilon = float(cfg["epsilon"])
     delta_rule = str(cfg["delta_rule"])
@@ -261,6 +293,7 @@ def main() -> None:
         )
     print(f"  B_bound={B_bound}, l_bound={l_bound} (RBF: k(x,x)=1)")
     print(f"  epsilon={epsilon}, delta={delta:.2e}")
+    print(f"  calibration_mode={calibration_mode}")
     print(f"  sigma_n2={sigma_n2}, lengthscale={lengthscale}, seeds={seeds}\n")
 
     # Public query point from test split (must be chosen before seeing test labels)
@@ -319,11 +352,11 @@ def main() -> None:
     records.append(rec_np)
 
     # Calibrate NDIS wrapper (Figure 5, Step 1)
-    print("Calibrating NDIS wrapper (finding tau*) ...")
+    print(f"Calibrating NDIS wrapper ({calibration_mode}, finding tau*) ...")
     print("  [This usually takes a few seconds for the standalone GPR demo configs]")
     try:
         t_cal = time.perf_counter()
-        wrapper = NDISGaussianWrapper()
+        wrapper = wrapper_classes[calibration_mode]()
         wrapper.calibrate(gpr, epsilon=epsilon, delta=delta, public_meta=public_meta)
         calibration_wall_time_s = time.perf_counter() - t_cal
 
@@ -335,6 +368,19 @@ def main() -> None:
         print(f"  sigma_std = sqrt(tau*) = {sigma_std:.4e}  (noise std dev)")
         print(f"  Delta(tau*) = {sens_at_tau.Delta:.6f}")
         print(f"  rho_inf(tau*) = {sens_at_tau.rho_inf:.6e}")
+        if calibration_mode == "scalar_gpr_exact":
+            cal_diag = wrapper.calibration_diagnostics
+            print(
+                "  privacy split: "
+                f"epsilon_cov={cal_diag['epsilon_cov']:.10f}, "
+                f"epsilon_mean={cal_diag['epsilon_mean']:.10f}"
+            )
+            print(
+                "  certified contributions: "
+                f"covariance={cal_diag['delta_covariance']:.10e}, "
+                f"mean={cal_diag['delta_mean_contribution']:.10e}, "
+                f"total={cal_diag['delta_total']:.10e}"
+            )
         print(f"  Cal time: {calibration_wall_time_s:.3f}s\n")
 
         # Release samples (Figure 5, Step 2)
@@ -360,13 +406,19 @@ def main() -> None:
 
     except Exception as exc:
         print(f"  CALIBRATION ERROR: {exc}")
+        mechanism_name = (
+            "GPR_NDIS_SCALAR_EXACT"
+            if calibration_mode == "scalar_gpr_exact"
+            else "GPR_NDIS"
+        )
         for seed in seeds:
             records.append({
-                "mechanism": "GPR_NDIS",
+                "mechanism": mechanism_name,
                 "dataset": dataset_name,
                 "epsilon": epsilon,
                 "delta": delta,
                 "sigma_n2": sigma_n2,
+                "calibration_mode": calibration_mode,
                 "seed": seed,
                 "error": str(exc),
             })

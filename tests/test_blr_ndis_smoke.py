@@ -167,15 +167,90 @@ class TestCalibration:
         from ndis_gaussian.calibration import delta_bar_mean
         assert delta_bar_mean(1.0, 0.0) == 0.0
 
-    def test_delta_bar_cov_zero_rho(self):
+    @pytest.mark.parametrize(
+        ("rho_inf", "nu"),
+        [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0)],
+    )
+    def test_delta_bar_cov_zero_sensitivity(self, rho_inf, nu):
         from ndis_gaussian.calibration import delta_bar_cov
-        assert delta_bar_cov(1.0, rho_inf=0.0, nu=0.0, d=10) == 0.0
+        assert delta_bar_cov(1.0, rho_inf=rho_inf, nu=nu, d=10) == 0.0
 
-    def test_delta_bar_cov_large_epsilon(self):
-        """When eps >= nu/2, delta_bar_cov should be 0."""
+    def test_delta_bar_cov_one_dimensional_hard_direction(self):
+        """The hard covariance direction remains nonzero past eps=nu/2."""
         from ndis_gaussian.calibration import delta_bar_cov
-        # nu = 3.0, so eps >= 1.5 gives 0
-        assert delta_bar_cov(2.0, rho_inf=0.1, nu=3.0, d=30) == 0.0
+        from scipy.stats import norm
+
+        epsilon = rho = 1.0
+        radius = math.sqrt((2.0 * epsilon + rho) / (1.0 - math.exp(-rho)))
+        exact = (
+            2.0 * norm.sf(radius * math.exp(-rho / 2.0))
+            - 2.0 * math.exp(epsilon) * norm.sf(radius)
+        )
+        bound = delta_bar_cov(epsilon, rho_inf=rho, nu=rho, d=1)
+
+        assert exact == pytest.approx(0.10656, abs=1e-5)
+        assert math.isfinite(bound)
+        assert 0.0 < bound <= 1.0
+        assert bound >= exact - 1e-8
+
+    def test_delta_bar_cov_large_epsilon_is_finite(self):
+        from ndis_gaussian.calibration import delta_bar_cov
+
+        bound = delta_bar_cov(710.0, rho_inf=0.1, nu=0.1, d=1)
+        assert math.isfinite(bound)
+        assert 0.0 <= bound <= 1.0
+
+    def test_covariance_envelope_scalar_formulas(self):
+        from ndis_gaussian.calibration import _phi_s, _psi_u
+
+        s, u, ell = 0.1, 0.75, 0.4
+        expected_phi = -s * ell - 0.5 * math.log1p(-2.0 * s * math.expm1(ell))
+        expected_psi = (
+            u * ell - 0.5 * math.log1p(2.0 * u * (-math.expm1(-ell)))
+        )
+
+        assert _phi_s(s, ell) == pytest.approx(expected_phi, rel=1e-12, abs=1e-12)
+        assert _psi_u(u, ell) == pytest.approx(expected_psi, rel=1e-12, abs=1e-12)
+
+        rho = 1.0
+        k = 1.0 / (2.0 * math.expm1(rho))
+        assert math.isfinite(_phi_s(0.99 * k, rho))
+        assert math.isinf(_phi_s(k, rho))
+        assert math.isfinite(_psi_u(10.0 * k, rho))
+
+    def test_covariance_envelope_constraints(self):
+        from ndis_gaussian.calibration import _A_star, _B_star, _phi_s, _psi_u
+
+        rho_inf, d = 0.4, 3
+        s, u = 0.1, 0.75
+        for nu, coordinates in [
+            (0.9, [0.4, 0.4, 0.1]),
+            (2.0, [0.4, 0.4, 0.4]),
+        ]:
+            expected_A = sum(_phi_s(s, ell) for ell in coordinates)
+            expected_B = sum(_psi_u(u, ell) for ell in coordinates)
+            assert _A_star(s, rho_inf, nu, d) == pytest.approx(expected_A, abs=1e-12)
+            assert _B_star(u, rho_inf, nu, d) == pytest.approx(expected_B, abs=1e-12)
+
+    def test_delta_bar_cov_optimizer_domains(self, monkeypatch):
+        import ndis_gaussian.calibration as calibration
+
+        calls = []
+
+        def _recording_objective(s, u, epsilon, rho_inf, nu, d):
+            calls.append((s, u))
+            k = 1.0 / (2.0 * math.expm1(rho_inf))
+            return (s - k / 2.0) ** 2 + (u - 2.0 * k) ** 2
+
+        monkeypatch.setattr(calibration, "_cov_objective", _recording_objective)
+        value = calibration.delta_bar_cov(1.0, rho_inf=1.0, nu=1.0, d=1)
+
+        k = 1.0 / (2.0 * math.expm1(1.0))
+        assert calls
+        assert all(0.0 <= s < k for s, _ in calls)
+        assert all(u >= 0.0 for _, u in calls)
+        assert any(math.isfinite(u) and u > k for _, u in calls)
+        assert value < 1e-6
 
     def test_delta_bar_cov_nontrivial(self):
         """For small epsilon and moderate rho/nu, delta_bar_cov should be in (0, 1)."""
