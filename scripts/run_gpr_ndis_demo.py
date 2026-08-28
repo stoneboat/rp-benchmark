@@ -24,7 +24,7 @@ Usage
   python scripts/run_gpr_ndis_demo.py --config configs/gpr_demo/linnerud.yaml \\
       --output-root data/outputs/gpr_ndis_runs
   python scripts/run_gpr_ndis_demo.py \\
-      --config configs/gpr_demo/linnerud_scalar_exact_legacy_seeds.yaml
+      --config configs/gpr_demo/linnerud_scalar_exact_paper_seeds.yaml
 
 Privacy-utility note
 --------------------

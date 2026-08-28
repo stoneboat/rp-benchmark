@@ -1,0 +1,37 @@
+# Scalar-output GPR with the application-specific exact-NDIS covariance path.
+# This config reproduces the paper-table protocol and release seeds 42--46.
+
+dataset: linnerud
+
+dataset_params:
+  target_index: 2
+
+calibration_mode: scalar_gpr_exact
+
+epsilon: 1.0
+delta_rule: "1e-5"
+
+kernel: rbf
+lengthscale: 5.0
+
+sigma_n2: 250.0
+l_bound: 1.0
+B_bound: 0.5
+
+x_star_source: test
+x_star_index: 0
+
+seeds: [42, 43, 44, 45, 46]
+
+split:
+  train_fraction: 0.8
+  seed: 42
+
+preprocess:
+  scale_x: true
+  clip_x: true
+  clip_x_bound: 3.0
+  clip_y: true
+  clip_y_bound: 0.5
+
+output_root: data/outputs/gpr_scalar_exact_ndis_runs

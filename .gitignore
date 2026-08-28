@@ -35,6 +35,9 @@ Thumbs.db
 reports/examples/*.png
 reports/examples/*.csv
 
+# Internal audit artifacts (not included in the public repository)
+reports/internal/
+
 # local tool dirs
 artifacts/**/.obsidian/
 .claude/
